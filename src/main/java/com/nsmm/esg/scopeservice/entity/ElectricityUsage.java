@@ -62,7 +62,7 @@ public class ElectricityUsage {
     private BigDecimal co2Emission;     // CO2 배출량 (tCO2)
 
     @Column(precision = 15, scale = 4)
-    private BigDecimal totalEmission;   // 총 배출량 (tCO2eq)
+    private BigDecimal totalCo2Equivalent;   // 총 CO2 등가량 (tCO2eq)
 
     private LocalDateTime calculatedAt; // 계산 일시
 
@@ -96,8 +96,8 @@ public class ElectricityUsage {
     }
 
     public void updateEmissions(BigDecimal co2Emission) {
-    this.co2Emission = co2Emission;
-    this.totalEmission = co2Emission; // 전력은 CO2와 동일
-    this.calculatedAt = LocalDateTime.now();
-}
+        this.co2Emission = co2Emission;
+        this.totalCo2Equivalent = co2Emission; // 전력은 CO2와 동일
+        this.calculatedAt = LocalDateTime.now();
+    }
 }

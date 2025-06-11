@@ -24,7 +24,8 @@ public class SteamUsageRequest {
     
     // 🎯 스팀 전용 필드들만
     private String steamType;              // 스팀 타입 (고압, 중압, 저압 등)
-    private BigDecimal usage;              // 스팀 사용량
+    private BigDecimal steamUsage;              // 스팀 사용량
     private String unit;                   // 단위 (GJ, MJ 등)
+    private String createdBy;              // 생성자 (ScopeModal의 createdBy)
     private String notes;                  // 비고
 }

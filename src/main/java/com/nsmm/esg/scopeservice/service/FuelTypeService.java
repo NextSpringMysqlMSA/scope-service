@@ -43,6 +43,15 @@ public class FuelTypeService {
                 .orElseThrow(() -> new IllegalArgumentException("연료 타입을 찾을 수 없습니다: " + id));
     }
 
+    public Optional<FuelType> findByFuelId(String fuelId) {
+        return fuelTypeRepository.findByFuelId(fuelId);
+    }
+
+    public FuelType findByFuelIdOrThrow(String fuelId) {
+        return fuelTypeRepository.findByFuelId(fuelId)
+                .orElseThrow(() -> new IllegalArgumentException("연료 ID를 찾을 수 없습니다: " + fuelId));
+    }
+
     public List<FuelType> findByCategory(String category) {
         return fuelTypeRepository.findByCategoryOrderByName(category);
     }
@@ -54,46 +63,46 @@ public class FuelTypeService {
     @Transactional
     public FuelType create(FuelType fuelType) {
         log.info("Creating new fuel type: {}", fuelType.getName());
-        
+
         // 중복 이름 체크
         if (fuelTypeRepository.existsByName(fuelType.getName())) {
             throw new IllegalArgumentException("이미 존재하는 연료 타입입니다: " + fuelType.getName());
         }
-        
+
         return fuelTypeRepository.save(fuelType);
     }
 
     @Transactional
     public FuelType update(Long id, FuelType fuelType) {
         log.info("Updating fuel type: {}", id);
-        
+
         FuelType existingFuelType = findByIdOrThrow(id);
-        
+
         // 이름이 변경되는 경우 중복 체크
-        if (!existingFuelType.getName().equals(fuelType.getName()) && 
-            fuelTypeRepository.existsByName(fuelType.getName())) {
+        if (!existingFuelType.getName().equals(fuelType.getName()) &&
+                fuelTypeRepository.existsByName(fuelType.getName())) {
             throw new IllegalArgumentException("이미 존재하는 연료 타입입니다: " + fuelType.getName());
         }
-        
+
         existingFuelType.setName(fuelType.getName());
         existingFuelType.setCategory(fuelType.getCategory());
         existingFuelType.setDescription(fuelType.getDescription());
         existingFuelType.setUnit(fuelType.getUnit());
         existingFuelType.setIsActive(fuelType.getIsActive());
-        
+
         return fuelTypeRepository.save(existingFuelType);
     }
 
     @Transactional
     public void delete(Long id) {
         log.info("Deleting fuel type: {}", id);
-        
+
         FuelType fuelType = findByIdOrThrow(id);
-        
+
         // 사용 중인지 체크 (발열량, 배출계수가 있는지 확인)
         boolean hasCalorificValue = calorificValueRepository.existsByFuelTypeId(id);
         boolean hasEmissionFactor = emissionFactorRepository.existsByFuelTypeId(id);
-        
+
         if (hasCalorificValue || hasEmissionFactor) {
             // 실제 삭제 대신 비활성화
             fuelType.setIsActive(false);

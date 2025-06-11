@@ -60,7 +60,9 @@ public class StationaryCombustionController {
             HttpServletRequest httpRequest) {
         
         Long memberId = extractMemberId(httpRequest);
-        StationaryCombustionResponse response = stationaryCombustionService.createStationaryCombustion(memberId, request);
+        request.setMemberId(memberId);  // 헤더 값으로 덮어쓰기
+            
+        StationaryCombustionResponse response = stationaryCombustionService.createStationaryCombustion(request);
         return ResponseEntity.ok(response);
     }
 
@@ -125,28 +127,28 @@ public class StationaryCombustionController {
         @ApiResponse(responseCode = "200", description = "조회 성공"),
         @ApiResponse(responseCode = "404", description = "데이터를 찾을 수 없음")
     })
-    @GetMapping("/partner/{partnerCompanyId}/year/{year}")
+    @GetMapping("/partner/{companyId}/year/{year}")
     public ResponseEntity<List<StationaryCombustionResponse>> getStationaryCombustionByPartnerAndYear(
             @Parameter(description = "협력사 ID (UUID)", required = true, example = "550e8400-e29b-41d4-a716-446655440000")
-            @PathVariable String partnerCompanyId,
+            @PathVariable String companyId,
             @Parameter(description = "보고 연도", required = true, example = "2024")
             @PathVariable Integer year,
             HttpServletRequest httpRequest) {
         
         Long memberId = extractMemberId(httpRequest);
-        List<StationaryCombustionResponse> responses = stationaryCombustionService.getByPartnerAndYear(memberId, partnerCompanyId, year);
+        List<StationaryCombustionResponse> responses = stationaryCombustionService.getByPartnerAndYear(memberId, companyId, year);
         return ResponseEntity.ok(responses);
     }
 
     @Operation(summary = "협력사별 고정연소 데이터 전체 조회", description = "특정 협력사의 모든 고정연소 데이터를 조회합니다.")
-    @GetMapping("/partner/{partnerCompanyId}")
+    @GetMapping("/partner/{companyId}")
     public ResponseEntity<List<StationaryCombustionResponse>> getStationaryCombustionByPartner(
             @Parameter(description = "협력사 ID (UUID)", required = true, example = "550e8400-e29b-41d4-a716-446655440000")
-            @PathVariable String partnerCompanyId,
+            @PathVariable String companyId,
             HttpServletRequest httpRequest) {
         
         Long memberId = extractMemberId(httpRequest);
-        List<StationaryCombustionResponse> responses = stationaryCombustionService.getByPartner(memberId, partnerCompanyId);
+        List<StationaryCombustionResponse> responses = stationaryCombustionService.getByPartner(memberId, companyId);
         return ResponseEntity.ok(responses);
     }
 
@@ -160,11 +162,11 @@ public class StationaryCombustionController {
             @Parameter(description = "보고 연도", required = true, example = "2024")
             @RequestParam Integer year,
             @Parameter(description = "협력사 ID (선택사항)", example = "550e8400-e29b-41d4-a716-446655440000")
-            @RequestParam(required = false) String partnerCompanyId,
+            @RequestParam(required = false) String companyId,
             HttpServletRequest httpRequest) {
         
         Long memberId = extractMemberId(httpRequest);
-        List<ScopeEmissionSummaryResponse> summaries = stationaryCombustionService.getMonthlyEmissionSummary(memberId, year, partnerCompanyId);
+        List<ScopeEmissionSummaryResponse> summaries = stationaryCombustionService.getMonthlyEmissionSummary(memberId, year, companyId);
         return ResponseEntity.ok(summaries);
     }
 
@@ -174,11 +176,11 @@ public class StationaryCombustionController {
             @Parameter(description = "보고 연도", required = true, example = "2024")
             @RequestParam Integer year,
             @Parameter(description = "협력사 ID (선택사항)", example = "550e8400-e29b-41d4-a716-446655440000")
-            @RequestParam(required = false) String partnerCompanyId,
+            @RequestParam(required = false) String companyId,
             HttpServletRequest httpRequest) {
         
         Long memberId = extractMemberId(httpRequest);
-        List<ScopeEmissionSummaryResponse> summaries = stationaryCombustionService.getEmissionSummaryByFuel(memberId, year, partnerCompanyId);
+        List<ScopeEmissionSummaryResponse> summaries = stationaryCombustionService.getEmissionSummaryByFuel(memberId, year, companyId);
         return ResponseEntity.ok(summaries);
     }
 
@@ -188,11 +190,11 @@ public class StationaryCombustionController {
             @Parameter(description = "보고 연도", required = true, example = "2024")
             @RequestParam Integer year,
             @Parameter(description = "협력사 ID (선택사항)", example = "550e8400-e29b-41d4-a716-446655440000")
-            @RequestParam(required = false) String partnerCompanyId,
+            @RequestParam(required = false) String companyId,
             HttpServletRequest httpRequest) {
         
         Long memberId = extractMemberId(httpRequest);
-        List<ScopeEmissionSummaryResponse> summaries = stationaryCombustionService.getEmissionSummaryByFacility(memberId, year, partnerCompanyId);
+        List<ScopeEmissionSummaryResponse> summaries = stationaryCombustionService.getEmissionSummaryByFacility(memberId, year, companyId);
         return ResponseEntity.ok(summaries);
     }
 
@@ -214,11 +216,11 @@ public class StationaryCombustionController {
             @Parameter(description = "보고 연도", required = true, example = "2024")
             @PathVariable Integer year,
             @Parameter(description = "협력사 ID (선택사항)", example = "550e8400-e29b-41d4-a716-446655440000")
-            @RequestParam(required = false) String partnerCompanyId,
+            @RequestParam(required = false) String companyId,
             HttpServletRequest httpRequest) {
         
         Long memberId = extractMemberId(httpRequest);
-        BigDecimal totalEmission = stationaryCombustionService.getTotalEmissionByYear(memberId, year, partnerCompanyId);
+        BigDecimal totalEmission = stationaryCombustionService.getTotalEmissionByYear(memberId, year, companyId);
         return ResponseEntity.ok(totalEmission);
     }
 

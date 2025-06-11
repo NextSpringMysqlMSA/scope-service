@@ -157,4 +157,13 @@ public interface StationaryCombustionRepository extends JpaRepository<Stationary
                 ));
     }
 
+    default Map<String, BigDecimal> getEmissionSummaryByPartner(Long memberId, Integer year) {
+        List<Object[]> results = findEmissionSummaryByPartner(memberId, year);
+        return results.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        row -> (String) row[0],
+                        row -> (BigDecimal) row[1]
+                ));
+    }
+
 }

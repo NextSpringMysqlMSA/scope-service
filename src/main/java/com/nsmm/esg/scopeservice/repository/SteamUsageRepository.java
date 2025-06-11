@@ -63,6 +63,17 @@ public interface SteamUsageRepository extends JpaRepository<SteamUsage, Long> {
             "WHERE s.memberId = :memberId")
     Object[] findDashboardStats(@Param("memberId") Long memberId, @Param("startDate") java.time.LocalDateTime startDate);
 
+    // 총 배출량 조회
+    @Query("SELECT SUM(s.totalCo2Equivalent) " +
+           "FROM SteamUsage s " +
+           "WHERE s.memberId = :memberId AND s.reportingYear = :year")
+    BigDecimal getTotalEmissionByYear(@Param("memberId") Long memberId, @Param("year") Integer year);
+
+    @Query("SELECT SUM(s.totalCo2Equivalent) " +
+           "FROM SteamUsage s " +
+           "WHERE s.memberId = :memberId AND s.companyId = :companyId AND s.reportingYear = :year")
+    BigDecimal getTotalEmissionByPartnerAndYear(@Param("memberId") Long memberId, @Param("companyId") String companyId, @Param("year") Integer year);
+
     // 헬퍼 메서드들
     default Map<String, BigDecimal> getMonthlyEmissionsMap(Long memberId, Integer year) {
         List<Object[]> results = findMonthlyEmissions(memberId, year);

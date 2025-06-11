@@ -53,4 +53,14 @@ public interface FuelTypeRepository extends JpaRepository<FuelType, Long> {
      */
     @Query("SELECT DISTINCT f.category FROM FuelType f WHERE f.isActive = true ORDER BY f.category")
     List<String> findDistinctCategories();
+
+    /**
+     * fuelId (문자열 ID) 기반 조회
+     */
+    Optional<FuelType> findByFuelId(String fuelId);
+
+    /**
+     * fuelId + 활성 여부로 조회
+     */
+    Optional<FuelType> findByFuelIdAndIsActiveTrue(String fuelId);
 }

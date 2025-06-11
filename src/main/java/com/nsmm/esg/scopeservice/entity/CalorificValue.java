@@ -41,11 +41,5 @@ public class CalorificValue {
     @Builder.Default
     private Boolean isActive = true; // 활성화 여부 - 추가 필요
 
-    @CreationTimestamp
-    @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt; // 추가 필요
 
-    @UpdateTimestamp
-    @Column(nullable = false)
-    private LocalDateTime updatedAt; // 추가 필요
 }

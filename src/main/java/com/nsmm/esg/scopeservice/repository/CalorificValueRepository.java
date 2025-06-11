@@ -3,8 +3,6 @@ package com.nsmm.esg.scopeservice.repository;
 import com.nsmm.esg.scopeservice.entity.CalorificValue;
 import com.nsmm.esg.scopeservice.entity.FuelType;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -19,18 +17,24 @@ public interface CalorificValueRepository extends JpaRepository<CalorificValue, 
     Optional<CalorificValue> findByFuelTypeAndYearAndIsActiveTrue(FuelType fuelType, Integer year);
 
     /**
-     * 연료 타입별 활성화된 발열량 조회
+     * 연료 타입 ID로 발열량 조회
+     */
+    Optional<CalorificValue> findByFuelType_IdAndYearAndIsActiveTrue(Long fuelTypeId, Integer year);
+
+    /**
+     * 연료 타입별 활성화된 발열량 목록 (최신 연도부터)
      */
     List<CalorificValue> findByFuelTypeAndIsActiveTrueOrderByYearDesc(FuelType fuelType);
 
     /**
-     * 특정 연도의 활성화된 발열량 조회
+     * 연도 기준 전체 연료 발열량 조회
      */
     List<CalorificValue> findByYearAndIsActiveTrueOrderByFuelType_Category(Integer year);
 
     /**
-     * 연료 ID와 연도로 발열량 조회
+     * 연료 타입 ID로 활성화 여부 확인
      */
-    @Query("SELECT c FROM CalorificValue c WHERE c.fuelType.id = :fuelTypeId AND c.year = :year AND c.isActive = true")
-    Optional<CalorificValue> findByFuelTypeIdAndYear(@Param("fuelTypeId") Long fuelTypeId, @Param("year") Integer year);
+    boolean existsByFuelTypeId(Long fuelTypeId);
+
+    Optional<CalorificValue> findByFuelTypeId(Long fuelTypeId);
 }

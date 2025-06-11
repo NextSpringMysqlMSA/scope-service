@@ -16,7 +16,7 @@ import java.util.Optional;
 
 /**
  * 배출량 계산 서비스
- * Scope 1, 2 배출량 계산을 위한 핵심 로직
+ * Scope 1, 2의 GHG 배출량 계산을 담당
  */
 @Service
 @RequiredArgsConstructor
@@ -27,54 +27,60 @@ public class EmissionCalculationService {
     private final CalorificValueRepository calorificValueRepository;
     private final EmissionFactorRepository emissionFactorRepository;
 
-    // GWP 값 (Global Warming Potential)
-    private static final BigDecimal CH4_GWP = new BigDecimal("25");    // CH4의 CO2 환산계수
-    private static final BigDecimal N2O_GWP = new BigDecimal("298");   // N2O의 CO2 환산계수
+    // 지구온난화지수 (Global Warming Potential)
+    private static final BigDecimal CH4_GWP = new BigDecimal("25");
+    private static final BigDecimal N2O_GWP = new BigDecimal("298");
 
     /**
      * Scope 1 연소 배출량 계산
-     * 계산식: 연료사용량 × 발열량 × 배출계수 × GWP
+     * 연료 사용량 × 발열량 × 배출계수 × GWP로 배출량을 산정
      */
-    public EmissionResult calculateScope1Emission(Long fuelTypeId, BigDecimal usage, Integer year) {
+    public EmissionResult calculateScope1Emission(String fuelId, BigDecimal usage, Integer year) {
         try {
-            // 1. 연료 타입 조회
-            FuelType fuelType = fuelTypeRepository.findById(fuelTypeId)
-                    .orElseThrow(() -> new IllegalArgumentException("연료 타입을 찾을 수 없습니다: " + fuelTypeId));
+            // 1. fuelId로 연료 타입 조회
+            FuelType fuelType = fuelTypeRepository.findByFuelIdAndIsActiveTrue(fuelId)
+                    .orElseThrow(() -> new IllegalArgumentException("연료 타입을 찾을 수 없습니다: " + fuelId));
+
+            Long fuelTypeId = fuelType.getId(); // 내부 ID 사용
 
             // 2. 발열량 조회
-            CalorificValue calorificValue = calorificValueRepository.findByFuelTypeIdAndYear(fuelTypeId, year)
-                    .orElseThrow(() -> new IllegalArgumentException("발열량 정보를 찾을 수 없습니다: " + fuelType.getName() + ", " + year));
+            Optional<CalorificValue> calorificValueOpt = calorificValueRepository
+                    .findByFuelType_IdAndYearAndIsActiveTrue(fuelTypeId, year);
+
+            BigDecimal calorificValueAmount = calorificValueOpt
+                    .map(CalorificValue::getValue)
+                    .orElseGet(() -> {
+                        log.warn("발열량 정보 없음, 기본값 사용 - 연료: {}, 연도: {}", fuelType.getName(), year);
+                        return getDefaultCalorificValue(fuelType.getName());
+                    });
 
             // 3. 배출계수 조회
-            EmissionFactor emissionFactor = emissionFactorRepository.findByFuelTypeIdAndYear(fuelTypeId, year)
-                    .orElseThrow(() -> new IllegalArgumentException("배출계수 정보를 찾을 수 없습니다: " + fuelType.getName() + ", " + year));
+            Optional<EmissionFactor> emissionFactorOpt = emissionFactorRepository
+                    .findByFuelType_IdAndYearAndIsActiveTrue(fuelTypeId, year);
 
-            // 4. 배출량 계산
-            // 연료사용량 × 발열량 = 에너지 소비량 (TJ)
-            BigDecimal energyConsumption = usage.multiply(calorificValue.getValue());
+            BigDecimal co2Factor, ch4Factor, n2oFactor;
+            if (emissionFactorOpt.isPresent()) {
+                EmissionFactor factor = emissionFactorOpt.get();
+                co2Factor = factor.getCo2Factor();
+                ch4Factor = factor.getCh4Factor();
+                n2oFactor = factor.getN2oFactor();
+            } else {
+                log.warn("배출계수 정보 없음, 기본값 사용 - 연료: {}, 연도: {}", fuelType.getName(), year);
+                co2Factor = getDefaultEmissionFactor(fuelType.getName());
+                ch4Factor = new BigDecimal("0.001");
+                n2oFactor = new BigDecimal("0.0001");
+            }
 
-            // CO2 배출량 (tCO2) = 에너지 소비량 × CO2 배출계수
-            BigDecimal co2Emission = energyConsumption.multiply(emissionFactor.getCo2Factor())
-                    .setScale(4, RoundingMode.HALF_UP);
+            // 4. 에너지 소비량 계산 (TJ)
+            BigDecimal energyConsumption = usage.multiply(calorificValueAmount);
 
-            // CH4 배출량 (tCO2eq) = 에너지 소비량 × CH4 배출계수 × GWP × 0.001 (kg -> ton)
-            BigDecimal ch4Emission = energyConsumption.multiply(emissionFactor.getCh4Factor())
-                    .multiply(CH4_GWP)
-                    .multiply(new BigDecimal("0.001"))
-                    .setScale(4, RoundingMode.HALF_UP);
+            // 5. 배출량 계산
+            BigDecimal co2Emission = energyConsumption.multiply(co2Factor).setScale(4, RoundingMode.HALF_UP);
+            BigDecimal ch4Emission = energyConsumption.multiply(ch4Factor).multiply(CH4_GWP).multiply(new BigDecimal("0.001")).setScale(4, RoundingMode.HALF_UP);
+            BigDecimal n2oEmission = energyConsumption.multiply(n2oFactor).multiply(N2O_GWP).multiply(new BigDecimal("0.001")).setScale(4, RoundingMode.HALF_UP);
+            BigDecimal totalEmission = co2Emission.add(ch4Emission).add(n2oEmission).setScale(4, RoundingMode.HALF_UP);
 
-            // N2O 배출량 (tCO2eq) = 에너지 소비량 × N2O 배출계수 × GWP × 0.001 (kg -> ton)
-            BigDecimal n2oEmission = energyConsumption.multiply(emissionFactor.getN2oFactor())
-                    .multiply(N2O_GWP)
-                    .multiply(new BigDecimal("0.001"))
-                    .setScale(4, RoundingMode.HALF_UP);
-
-            // 총 배출량 = CO2 + CH4 + N2O
-            BigDecimal totalEmission = co2Emission.add(ch4Emission).add(n2oEmission)
-                    .setScale(4, RoundingMode.HALF_UP);
-
-            log.debug("배출량 계산 완료 - 연료: {}, 사용량: {}, 총 배출량: {}", 
-                    fuelType.getName(), usage, totalEmission);
+            log.debug("배출량 계산 완료 - 연료: {}, 사용량: {}, 총 배출량: {}", fuelType.getName(), usage, totalEmission);
 
             return EmissionResult.builder()
                     .co2Emission(co2Emission)
@@ -84,51 +90,116 @@ public class EmissionCalculationService {
                     .build();
 
         } catch (Exception e) {
-            log.error("배출량 계산 중 오류 발생: {}", e.getMessage());
-            throw new RuntimeException("배출량 계산 실패", e);
+            log.error("배출량 계산 실패 - fuelId: {}, error: {}", fuelId, e.getMessage());
+            return createZeroEmissionResult();
         }
     }
 
+
     /**
-     * Scope 1 고정연소 배출량 계산 (새 구조용)
+     * Scope 1 고정연소 배출량 계산 (fuelId 기반 전체 처리)
+     */
+    public EmissionResult calculateScope1StationaryEmission(String fuelId, BigDecimal usage, Integer year) {
+        try {
+            // 1. 연료 타입 조회
+            FuelType fuelType = fuelTypeRepository.findByFuelIdAndIsActiveTrue(fuelId)
+                    .orElseThrow(() -> new IllegalArgumentException("연료 ID를 찾을 수 없습니다: " + fuelId));
+
+            // 2. 발열량 조회
+            Optional<CalorificValue> calorificValueOpt = calorificValueRepository
+                    .findByFuelType_IdAndYearAndIsActiveTrue(fuelType.getId(), year);
+
+            BigDecimal calorificValueAmount = calorificValueOpt
+                    .map(CalorificValue::getValue)
+                    .orElseGet(() -> {
+                        log.warn("발열량 정보 없음, 기본값 사용 - 연료: {}, 연도: {}", fuelType.getName(), year);
+                        return getDefaultCalorificValue(fuelType.getName());
+                    });
+
+            // 3. 배출계수 조회
+            Optional<EmissionFactor> emissionFactorOpt = emissionFactorRepository
+                    .findByFuelType_IdAndYearAndIsActiveTrue(fuelType.getId(), year);
+
+            BigDecimal co2Factor, ch4Factor, n2oFactor;
+            if (emissionFactorOpt.isPresent()) {
+                EmissionFactor factor = emissionFactorOpt.get();
+                co2Factor = factor.getCo2Factor();
+                ch4Factor = factor.getCh4Factor();
+                n2oFactor = factor.getN2oFactor();
+            } else {
+                log.warn("배출계수 정보 없음, 기본값 사용 - 연료: {}, 연도: {}", fuelType.getName(), year);
+                co2Factor = getDefaultEmissionFactor(fuelType.getName());
+                ch4Factor = new BigDecimal("0.001");
+                n2oFactor = new BigDecimal("0.0001");
+            }
+
+            // 4. 에너지 소비량 계산 (TJ)
+            BigDecimal energyConsumption = usage.multiply(calorificValueAmount);
+
+            // 5. GHG 배출량 계산
+            BigDecimal co2Emission = energyConsumption.multiply(co2Factor).setScale(4, RoundingMode.HALF_UP);
+            BigDecimal ch4Emission = energyConsumption.multiply(ch4Factor).multiply(CH4_GWP).multiply(new BigDecimal("0.001")).setScale(4, RoundingMode.HALF_UP);
+            BigDecimal n2oEmission = energyConsumption.multiply(n2oFactor).multiply(N2O_GWP).multiply(new BigDecimal("0.001")).setScale(4, RoundingMode.HALF_UP);
+
+            BigDecimal totalEmission = co2Emission.add(ch4Emission).add(n2oEmission).setScale(4, RoundingMode.HALF_UP);
+
+            log.debug("고정연소 배출량 계산 완료 - 연료: {}, 사용량: {}, 총 배출량: {}", fuelType.getName(), usage, totalEmission);
+
+            return EmissionResult.builder()
+                    .co2Emission(co2Emission)
+                    .ch4Emission(ch4Emission)
+                    .n2oEmission(n2oEmission)
+                    .totalEmission(totalEmission)
+                    .build();
+
+        } catch (Exception e) {
+            log.error("고정연소 배출량 계산 실패 - fuelId: {}, error: {}", fuelId, e.getMessage());
+            return createZeroEmissionResult();
+        }
+    }
+
+
+
+    /**
+     * Scope 1 고정연소 배출량 계산 (연도 기본값)
      */
     public BigDecimal calculateStationaryEmission(String fuelId, BigDecimal usage) {
-        try {
-            // 기본 배출계수 사용 (실제로는 DB에서 조회해야 함)
-            BigDecimal co2Factor = new BigDecimal("2.3"); // 기본값
-            return usage.multiply(co2Factor).setScale(4, RoundingMode.HALF_UP);
-        } catch (Exception e) {
-            log.error("고정연소 배출량 계산 실패: {}", e.getMessage());
-            return BigDecimal.ZERO;
-        }
+        int currentYear = java.time.LocalDate.now().getYear();
+        return calculateScope1StationaryEmission(fuelId, usage, currentYear).getTotalEmission();
     }
 
     /**
-     * Scope 1 이동연소 배출량 계산 (새 구조용)
+     * Scope 1 이동연소 배출량 계산 (fuelId 기준)
      */
-    public BigDecimal calculateMobileEmission(String fuelId, BigDecimal distance) {
+    public EmissionResult calculateScope1MobileEmission(String fuelId, BigDecimal distance, Integer year) {
         try {
-            // 기본 배출계수 사용 (실제로는 DB에서 조회해야 함)
-            BigDecimal co2Factor = new BigDecimal("0.21"); // kg CO2/km
-            return distance.multiply(co2Factor).divide(new BigDecimal("1000"), 4, RoundingMode.HALF_UP); // kg -> ton
+            FuelType fuelType = (FuelType) fuelTypeRepository.findByFuelId(fuelId)
+                    .orElseThrow(() -> new IllegalArgumentException("연료 ID를 찾을 수 없습니다: " + fuelId));
+            return calculateScope1Emission(fuelType.getFuelId(), distance, year);
         } catch (Exception e) {
             log.error("이동연소 배출량 계산 실패: {}", e.getMessage());
-            return BigDecimal.ZERO;
+            return createZeroEmissionResult();
         }
     }
 
     /**
-     * Scope 2 전력 배출량 계산 (재생에너지 고려)
+     * Scope 1 이동연소 배출량 계산 (연도 기본값)
+     */
+    public BigDecimal calculateMobileEmission(String fuelId, BigDecimal distance) {
+        int currentYear = java.time.LocalDate.now().getYear();
+        return calculateScope1MobileEmission(fuelId, distance, currentYear).getTotalEmission();
+    }
+
+    /**
+     * Scope 2 전력 사용 배출량 계산
      */
     public BigDecimal calculateElectricityEmission(BigDecimal usage, Boolean isRenewable) {
         try {
             if (Boolean.TRUE.equals(isRenewable)) {
-                return BigDecimal.ZERO; // 재생에너지는 배출량 0
+                return BigDecimal.ZERO;
             }
-            
-            // 한국 전력 배출계수 (2022년 기준)
-            BigDecimal electricityFactor = new BigDecimal("0.4653"); // kg CO2/kWh
-            return usage.multiply(electricityFactor).divide(new BigDecimal("1000"), 4, RoundingMode.HALF_UP); // kg -> ton
+            BigDecimal factor = new BigDecimal("0.4653"); // kgCO2/kWh
+            return usage.multiply(factor).divide(new BigDecimal("1000"), 4, RoundingMode.HALF_UP);
         } catch (Exception e) {
             log.error("전력 배출량 계산 실패: {}", e.getMessage());
             return BigDecimal.ZERO;
@@ -136,28 +207,25 @@ public class EmissionCalculationService {
     }
 
     /**
-     * Scope 2 스팀 배출량 계산 (스팀 타입별)
+     * Scope 2 스팀 사용 배출량 계산
      */
     public BigDecimal calculateSteamEmission(BigDecimal usage, String steamType) {
         try {
             BigDecimal steamFactor;
-            
-            // 스팀 타입별 배출계수 설정
-            switch (steamType != null ? steamType.toLowerCase() : "default") {
+            switch (steamType != null ? steamType.toLowerCase() : "") {
                 case "고압스팀":
-                    steamFactor = new BigDecimal("0.073"); // tCO2/GJ
+                    steamFactor = new BigDecimal("0.073");
                     break;
                 case "중압스팀":
-                    steamFactor = new BigDecimal("0.065"); // tCO2/GJ
+                    steamFactor = new BigDecimal("0.065");
                     break;
                 case "저압스팀":
-                    steamFactor = new BigDecimal("0.058"); // tCO2/GJ
+                    steamFactor = new BigDecimal("0.058");
                     break;
                 default:
-                    steamFactor = new BigDecimal("0.065"); // 기본값
+                    steamFactor = new BigDecimal("0.065");
                     break;
             }
-            
             return usage.multiply(steamFactor).setScale(4, RoundingMode.HALF_UP);
         } catch (Exception e) {
             log.error("스팀 배출량 계산 실패: {}", e.getMessage());
@@ -166,7 +234,7 @@ public class EmissionCalculationService {
     }
 
     /**
-     * 배출량 계산 결과 DTO
+     * 계산 결과 DTO 클래스
      */
     @lombok.Getter
     @lombok.Builder
@@ -176,5 +244,57 @@ public class EmissionCalculationService {
         private BigDecimal ch4Emission;
         private BigDecimal n2oEmission;
         private BigDecimal totalEmission;
+
+        public BigDecimal getTotalCo2Equivalent() {
+            return totalEmission;
+        }
+    }
+
+    /**
+     * 예외 상황 시 0으로 초기화된 결과 반환
+     */
+    private EmissionResult createZeroEmissionResult() {
+        return EmissionResult.builder()
+                .co2Emission(BigDecimal.ZERO)
+                .ch4Emission(BigDecimal.ZERO)
+                .n2oEmission(BigDecimal.ZERO)
+                .totalEmission(BigDecimal.ZERO)
+                .build();
+    }
+
+    /**
+     * 연료 이름 기반 기본 CO2 배출계수 반환
+     */
+    private BigDecimal getDefaultEmissionFactor(String fuelName) {
+        if (fuelName == null) return new BigDecimal("2.3");
+
+        String lower = fuelName.toLowerCase();
+        if (lower.contains("가솔린")) return new BigDecimal("2.28");
+        if (lower.contains("경유") || lower.contains("디젤")) return new BigDecimal("2.58");
+        if (lower.contains("lpg")) return new BigDecimal("1.87");
+        if (lower.contains("lng")) return new BigDecimal("2.75");
+        if (lower.contains("도시가스")) return new BigDecimal("2.23");
+        if (lower.contains("중유")) return new BigDecimal("3.17");
+
+        return new BigDecimal("2.3");
+    }
+
+    /**
+     * 연료 이름 기반 기본 발열량 반환
+     */
+    private BigDecimal getDefaultCalorificValue(String fuelName) {
+        if (fuelName == null) return new BigDecimal("10.0");
+
+        String lower = fuelName.toLowerCase();
+        if (lower.contains("가솔린")) return new BigDecimal("31.0");
+        if (lower.contains("경유") || lower.contains("디젤")) return new BigDecimal("35.3");
+        if (lower.contains("lpg")) return new BigDecimal("25.3");
+        if (lower.contains("lng")) return new BigDecimal("54.0");
+        if (lower.contains("도시가스")) return new BigDecimal("43.0");
+        if (lower.contains("중유")) return new BigDecimal("41.0");
+        if (lower.contains("무연탄")) return new BigDecimal("25.8");
+        if (lower.contains("유연탄")) return new BigDecimal("26.6");
+
+        return new BigDecimal("10.0");
     }
 }

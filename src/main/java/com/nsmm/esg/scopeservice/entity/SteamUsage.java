@@ -43,17 +43,17 @@ public class SteamUsage {
     @Column(length = 100)
     private String facilityLocation; // 시설 위치
 
-    // 🎯 스팀 전용 필드들
+    // 스팀 전용 필드들
     @Column(nullable = false, length = 50)
     private String steamType;      // 스팀 타입 (고압, 중압, 저압 등)
 
     @Column(nullable = false, precision = 15, scale = 4)
-    private BigDecimal usage;      // 스팀 사용량
+    private BigDecimal steamUsage;      // 스팀 사용량
 
     @Column(nullable = false, length = 20)
     private String unit;           // 단위 (GJ, MJ 등)
 
-    // 🎯 스팀 배출량 (CO2만)
+    // 스팀 배출량 (CO2만)
     @Column(precision = 15, scale = 4)
     private BigDecimal co2Emission;     // CO2 배출량 (tCO2)
 
@@ -87,7 +87,7 @@ public class SteamUsage {
         this.facilityName = request.getFacilityName();
         this.facilityLocation = request.getFacilityLocation();
         this.steamType = request.getSteamType();
-        this.usage = request.getUsage();
+        this.steamUsage = request.getSteamUsage();
         this.unit = request.getUnit();
         this.createdBy = request.getCreatedBy();  // 누락된 필드 추가
         this.notes = request.getNotes();

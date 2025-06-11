@@ -62,7 +62,7 @@ INSERT INTO fuel_type (fuel_id, category, name, description, unit, is_active) VA
 ('STEAM_TYPE_C', 'STEAM', '스팀 C타입', '초고압 스팀', 'GJ', true);
 
 -- 2. EmissionFactor 테이블 데이터 INSERT (67개 연료별 배출계수)
-INSERT INTO emission_factor (fuel_type_id, co2_factor, ch4_factor, n2o_factor, year, is_active) VALUES
+INSERT INTO emission_factor (fuel_type_id, co2factor, ch4factor, n2o_factor, year, is_active) VALUES
 -- === 고정연소 - 액체연료 (석유계) ===
 ((SELECT id FROM fuel_type WHERE fuel_id = 'CRUDE_OIL'), 2.13, 0.0033, 0.0006, 2024, true),
 ((SELECT id FROM fuel_type WHERE fuel_id = 'NAPHTHA'), 1.93, 0.0033, 0.0006, 2024, true),
@@ -146,39 +146,3 @@ INSERT INTO calorific_value (fuel_type_id, value, unit, year, is_active) VALUES
 
 -- === 전력 (kWh → TJ 변환계수) ===
 ((SELECT id FROM fuel_type WHERE fuel_id = 'ELECTRICITY_KWH'), 0.0036, 'TJ/MWh', 2024, true);
-
--- ==============================================
--- 데이터 확인 쿼리
--- ==============================================
-
--- 입력된 데이터 확인
-SELECT 
-    'FuelType' as table_name,
-    COUNT(*) as record_count 
-FROM fuel_type 
-WHERE is_active = true
-
-UNION ALL
-
-SELECT 
-    'EmissionFactor' as table_name,
-    COUNT(*) as record_count 
-FROM emission_factor 
-WHERE is_active = true
-
-UNION ALL
-
-SELECT 
-    'CalorificValue' as table_name,
-    COUNT(*) as record_count 
-FROM calorific_value 
-WHERE is_active = true;
-
--- 카테고리별 연료 개수 확인
-SELECT 
-    category,
-    COUNT(*) as fuel_count
-FROM fuel_type 
-WHERE is_active = true
-GROUP BY category
-ORDER BY category;

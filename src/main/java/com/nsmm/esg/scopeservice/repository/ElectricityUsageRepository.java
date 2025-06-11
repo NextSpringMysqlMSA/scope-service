@@ -109,36 +109,3 @@ public interface ElectricityUsageRepository extends JpaRepository<ElectricityUsa
         return map;
     }
 }
-    List<Object[]> sumEmissionBySupplierAndMemberIdAndYear(@Param("memberId") Long memberId, @Param("year") Integer year);
-
-    // 협력사별 조회 메서드들
-
-    /**
-     * 회원별 및 협력사별 전력 사용 데이터 조회
-     */
-    List<ElectricityUsage> findByMemberIdAndPartnerCompanyIdOrderByYearDescMonthDesc(Long memberId, String partnerCompanyId);
-
-    /**
-     * 회원별 및 협력사별 특정 연도 전력 사용 데이터 조회
-     */
-    List<ElectricityUsage> findByMemberIdAndPartnerCompanyIdAndYearOrderByMonthAsc(Long memberId, String partnerCompanyId, Integer year);
-
-    /**
-     * 회원별 및 협력사별 특정 연도/월 전력 사용 데이터 조회
-     */
-    List<ElectricityUsage> findByMemberIdAndPartnerCompanyIdAndYearAndMonth(Long memberId, String partnerCompanyId, Integer year, Integer month);
-
-    /**
-     * 회원별 및 협력사별 연도별 총 배출량 합계
-     */
-    @Query("SELECT SUM(e.totalEmission) FROM ElectricityUsage e WHERE e.memberId = :memberId AND e.partnerCompanyId = :partnerCompanyId AND e.year = :year")
-    BigDecimal sumTotalEmissionByMemberIdAndPartnerCompanyIdAndYear(@Param("memberId") Long memberId, @Param("partnerCompanyId") String partnerCompanyId, @Param("year") Integer year);
-
-    /**
-     * 회원별 및 협력사별 월별 총 배출량 합계
-     */
-    @Query("SELECT SUM(e.totalEmission) FROM ElectricityUsage e WHERE e.memberId = :memberId AND e.partnerCompanyId = :partnerCompanyId AND e.year = :year AND e.month = :month")
-    BigDecimal sumTotalEmissionByMemberIdAndPartnerCompanyIdAndYearAndMonth(@Param("memberId") Long memberId, @Param("partnerCompanyId") String partnerCompanyId, @Param("year") Integer year, @Param("month") Integer month);
-
-    // Service에서 사용되는 추가 메서드들 (필요 시 추가 예정)
-}

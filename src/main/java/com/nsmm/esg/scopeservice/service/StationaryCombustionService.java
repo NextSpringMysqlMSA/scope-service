@@ -3,7 +3,6 @@ package com.nsmm.esg.scopeservice.service;
 import com.nsmm.esg.scopeservice.dto.StationaryCombustionRequest;
 import com.nsmm.esg.scopeservice.dto.StationaryCombustionResponse;
 import com.nsmm.esg.scopeservice.dto.ScopeEmissionSummaryResponse;
-import com.nsmm.esg.scopeservice.entity.FuelType;
 import com.nsmm.esg.scopeservice.entity.StationaryCombustion;
 import com.nsmm.esg.scopeservice.repository.FuelTypeRepository;
 import com.nsmm.esg.scopeservice.repository.StationaryCombustionRepository;
@@ -13,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -39,17 +37,18 @@ public class StationaryCombustionService {
      * 고정연소 데이터 생성 (POST /)
      */
     @Transactional
-    public StationaryCombustionResponse createStationaryCombustion(Long memberId, StationaryCombustionRequest request) {
+    public StationaryCombustionResponse createStationaryCombustion(StationaryCombustionRequest request) {
         try {
             // 1. Request 검증
             validateRequest(request);
 
             // 2. 엔티티 생성
             StationaryCombustion entity = StationaryCombustion.builder()
-                    .memberId(memberId)
+                    .memberId(request.getMemberId())
                     .companyId(request.getCompanyId())
                     .reportingYear(request.getReportingYear())
                     .reportingMonth(request.getReportingMonth())
+                    .facilityName(request.getFacilityName())
                     .facilityLocation(request.getFacilityLocation())
                     .combustionType(request.getCombustionType())
                     .fuelId(request.getFuelId())
@@ -93,7 +92,7 @@ public class StationaryCombustionService {
             validateRequest(request);
 
             // 3. 엔티티 업데이트
-            entity.updateFromScopeModal(request);
+            entity.updateFromRequest(request);
 
             // 4. 배출량 재계산
             calculateAndSetEmissions(entity);
@@ -152,13 +151,13 @@ public class StationaryCombustionService {
     // =============================================================================
 
     /**
-     * 협력사별 연도별 고정연소 데이터 조회 (GET /partner/{partnerCompanyId}/year/{year})
+     * 협력사별 연도별 고정연소 데이터 조회 (GET /partner/{companyId}/year/{year})
      */
     @Transactional(readOnly = true)
     public List<StationaryCombustionResponse> getByPartnerAndYear(
-            Long memberId, String partnerCompanyId, Integer year) {
+            Long memberId, String companyId, Integer year) {
         List<StationaryCombustion> entities = stationaryCombustionRepository
-                .findByMemberIdAndCompanyIdAndReportingYear(memberId, partnerCompanyId, year);
+                .findByMemberIdAndCompanyIdAndReportingYear(memberId, companyId, year);
         
         return entities.stream()
                 .map(this::convertToResponse)
@@ -166,13 +165,13 @@ public class StationaryCombustionService {
     }
 
     /**
-     * 협력사별 전체 고정연소 데이터 조회 (GET /partner/{partnerCompanyId})
+     * 협력사별 전체 고정연소 데이터 조회 (GET /partner/{companyId})
      */
     @Transactional(readOnly = true)
     public List<StationaryCombustionResponse> getByPartner(
-            Long memberId, String partnerCompanyId) {
+            Long memberId, String companyId) {
         List<StationaryCombustion> entities = stationaryCombustionRepository
-                .findByMemberIdAndCompanyId(memberId, partnerCompanyId);
+                .findByMemberIdAndCompanyId(memberId, companyId);
         
         return entities.stream()
                 .map(this::convertToResponse)
@@ -216,13 +215,19 @@ public class StationaryCombustionService {
      * 월별 배출량 집계
      */
     @Transactional(readOnly = true)
-    public List<ScopeEmissionSummaryResponse> getMonthlyEmissionSummary(Long memberId, Integer year, String partnerCompanyId) {
-        Map<Integer, BigDecimal> monthlyData = stationaryCombustionRepository.getMonthlyEmissionSummary(memberId, year, partnerCompanyId);
+    public List<ScopeEmissionSummaryResponse> getMonthlyEmissionSummary(Long memberId, Integer year, String companyId) {
+        Map<Integer, BigDecimal> monthlyData = stationaryCombustionRepository.getMonthlyEmissionSummary(memberId, year, companyId);
         
         return monthlyData.entrySet().stream()
                 .map(entry -> ScopeEmissionSummaryResponse.builder()
-                        .category(entry.getKey().toString())
+                        .memberId(memberId)
+                        .year(year)
+                        .month(entry.getKey())
+                        .companyId(companyId)
+                        .aggregationType("MONTHLY")
                         .totalEmission(entry.getValue())
+                        .unit("tCO2eq")
+                        .calculatedAt(java.time.LocalDateTime.now())
                         .build())
                 .collect(Collectors.toList());
     }
@@ -231,13 +236,18 @@ public class StationaryCombustionService {
      * 연료별 배출량 집계
      */
     @Transactional(readOnly = true)
-    public List<ScopeEmissionSummaryResponse> getEmissionSummaryByFuel(Long memberId, Integer year, String partnerCompanyId) {
-        Map<String, BigDecimal> fuelData = stationaryCombustionRepository.getEmissionSummaryByFuel(memberId, year, partnerCompanyId);
+    public List<ScopeEmissionSummaryResponse> getEmissionSummaryByFuel(Long memberId, Integer year, String companyId) {
+        Map<String, BigDecimal> fuelData = stationaryCombustionRepository.getEmissionSummaryByFuel(memberId, year, companyId);
         
         return fuelData.entrySet().stream()
                 .map(entry -> ScopeEmissionSummaryResponse.builder()
-                        .category(entry.getKey())
+                        .memberId(memberId)
+                        .year(year)
+                        .companyId(companyId)
+                        .aggregationType("BY_FUEL")
                         .totalEmission(entry.getValue())
+                        .unit("tCO2eq")
+                        .calculatedAt(java.time.LocalDateTime.now())
                         .build())
                 .collect(Collectors.toList());
     }
@@ -246,13 +256,18 @@ public class StationaryCombustionService {
      * 시설별 배출량 집계
      */
     @Transactional(readOnly = true)
-    public List<ScopeEmissionSummaryResponse> getEmissionSummaryByFacility(Long memberId, Integer year, String partnerCompanyId) {
-        Map<String, BigDecimal> facilityData = stationaryCombustionRepository.getEmissionSummaryByFacility(memberId, year, partnerCompanyId);
+    public List<ScopeEmissionSummaryResponse> getEmissionSummaryByFacility(Long memberId, Integer year, String companyId) {
+        Map<String, BigDecimal> facilityData = stationaryCombustionRepository.getEmissionSummaryByFacility(memberId, year, companyId);
         
         return facilityData.entrySet().stream()
                 .map(entry -> ScopeEmissionSummaryResponse.builder()
-                        .category(entry.getKey())
+                        .memberId(memberId)
+                        .year(year)
+                        .companyId(companyId)
+                        .aggregationType("BY_FACILITY")
                         .totalEmission(entry.getValue())
+                        .unit("tCO2eq")
+                        .calculatedAt(java.time.LocalDateTime.now())
                         .build())
                 .collect(Collectors.toList());
     }
@@ -266,8 +281,13 @@ public class StationaryCombustionService {
         
         return partnerData.entrySet().stream()
                 .map(entry -> ScopeEmissionSummaryResponse.builder()
-                        .category(entry.getKey())
+                        .memberId(memberId)
+                        .year(year)
+                        .companyId(entry.getKey())
+                        .aggregationType("BY_PARTNER")
                         .totalEmission(entry.getValue())
+                        .unit("tCO2eq")
+                        .calculatedAt(java.time.LocalDateTime.now())
                         .build())
                 .collect(Collectors.toList());
     }
@@ -276,9 +296,9 @@ public class StationaryCombustionService {
      * 연도별 총 배출량
      */
     @Transactional(readOnly = true)
-    public BigDecimal getTotalEmissionByYear(Long memberId, Integer year, String partnerCompanyId) {
-        if (partnerCompanyId != null) {
-            return stationaryCombustionRepository.getTotalEmissionByMemberAndPartnerAndYear(memberId, partnerCompanyId, year);
+    public BigDecimal getTotalEmissionByYear(Long memberId, Integer year, String companyId) {
+        if (companyId != null) {
+            return stationaryCombustionRepository.getTotalEmissionByMemberAndPartnerAndYear(memberId, companyId, year);
         } else {
             return stationaryCombustionRepository.getTotalEmissionByMemberAndYear(memberId, year);
         }
@@ -334,6 +354,9 @@ public class StationaryCombustionService {
                     emissionResult.getN2oEmission(),
                     emissionResult.getTotalCo2Equivalent()
             );
+            
+            log.debug("고정연소 배출량 계산 완료 - 연료: {}, 사용량: {}, 총 배출량: {}", 
+                    entity.getFuelName(), entity.getFuelUsage(), emissionResult.getTotalCo2Equivalent());
             
         } catch (Exception e) {
             log.warn("배출량 계산 실패, 기본값 사용: {}", e.getMessage());
