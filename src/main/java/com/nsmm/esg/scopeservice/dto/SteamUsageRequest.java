@@ -1,38 +1,28 @@
 package com.nsmm.esg.scopeservice.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
-import javax.validation.constraints.NotNull;
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.Positive;
-import javax.validation.constraints.Min;
 import java.math.BigDecimal;
 
-@Data
+/**
+ * Scope 2 스팀 사용 요청 DTO
+ * ScopeModal에서 전송되는 데이터 구조에 맞춤
+ */
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class SteamUsageRequest {
 
-    @NotNull(message = "회사 ID는 필수입니다.")
-    private Long companyId;
-
-    @NotNull(message = "보고연도는 필수입니다.")
-    @Min(value = 2000, message = "보고연도는 2000년 이후여야 합니다.")
-    private Integer reportingYear;
-
-    @NotBlank(message = "시설명은 필수입니다.")
-    private String facilityName;
-
-    @NotNull(message = "스팀 사용량은 필수입니다.")
-    @Positive(message = "스팀 사용량은 양수여야 합니다.")
-    private BigDecimal steamUsage;
-
-    @NotBlank(message = "단위는 필수입니다.")
-    private String unit;
-
-    private String createdBy;
+    private String companyId;              // 회사/협력사 ID (UUID)
+    private Integer reportingYear;         // 보고 연도
+    private Integer reportingMonth;        // 보고 월
+    private String facilityName;           // 시설명
+    private String facilityLocation;       // 시설 위치
+    private String steamType;              // 스팀 타입
+    private BigDecimal steamUsage;         // 스팀 사용량
+    private String unit;                   // 단위 (GJ)
+    private String createdBy;              // 생성자
+    private String notes;                  // 비고
 }

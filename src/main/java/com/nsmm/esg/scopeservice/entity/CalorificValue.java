@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "calorific_value")
-public class CalorificValue implements Identifiable<Long> {
+public class CalorificValue {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

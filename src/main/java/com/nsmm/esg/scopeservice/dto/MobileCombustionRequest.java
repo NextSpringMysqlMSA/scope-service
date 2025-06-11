@@ -1,41 +1,30 @@
 package com.nsmm.esg.scopeservice.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
-import javax.validation.constraints.NotNull;
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.Positive;
-import javax.validation.constraints.Min;
 import java.math.BigDecimal;
 
-@Data
+/**
+ * Scope 1 이동연소 요청 DTO
+ * ScopeModal에서 전송되는 데이터 구조에 맞춤
+ */
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class MobileCombustionRequest {
 
-    @NotNull(message = "회사 ID는 필수입니다.")
-    private Long companyId;
-
-    @NotNull(message = "보고연도는 필수입니다.")
-    @Min(value = 2000, message = "보고연도는 2000년 이후여야 합니다.")
-    private Integer reportingYear;
-
-    @NotBlank(message = "차량 유형은 필수입니다.")
-    private String vehicleType;
-
-    @NotNull(message = "연료 타입 ID는 필수입니다.")
-    private Long fuelTypeId;
-
-    @NotNull(message = "연료 사용량은 필수입니다.")
-    @Positive(message = "연료 사용량은 양수여야 합니다.")
-    private BigDecimal fuelUsage;
-
-    @NotBlank(message = "단위는 필수입니다.")
-    private String unit;
-
-    private String createdBy;
+    private String companyId;              // 회사/협력사 ID (UUID)
+    private Integer reportingYear;         // 보고 연도
+    private Integer reportingMonth;        // 보고 월
+    private String vehicleType;            // 차량 유형
+    private String transportType;          // 교통수단 유형 (ROAD, AVIATION, RAILWAY, MARINE)
+    private String fuelId;                 // 연료 ID
+    private String fuelName;               // 연료명
+    private BigDecimal fuelUsage;          // 연료 사용량
+    private String unit;                   // 단위
+    private BigDecimal distance;           // 이동거리 (km)
+    private String createdBy;              // 생성자
+    private String notes;                  // 비고
 }

@@ -31,19 +31,11 @@ public class SteamUsageService {
     public SteamUsageResponse create(SteamUsageRequest request) {
         log.info("Creating steam usage record for company: {}", request.getCompanyId());
 
-        // CO2 배출량 계산 (스팀 사용량 × 배출계수)
-        BigDecimal emission = request.getSteamUsage().multiply(STEAM_EMISSION_FACTOR);
-
-        SteamUsage steamUsage = SteamUsage.builder()
-                .companyId(request.getCompanyId())
-                .reportingYear(request.getReportingYear())
-                .facilityName(request.getFacilityName())
-                .steamUsage(request.getSteamUsage())
-                .unit(request.getUnit())
-                .co2Emission(emission)
-                .calculatedAt(LocalDateTime.now())
-                .createdBy(request.getCreatedBy())
-                .build();
+        // 엔티티 생성
+        SteamUsage steamUsage = request.toEntity();
+        
+        // 배출량 계산
+        steamUsage.updateEmissions();
 
         SteamUsage saved = steamUsageRepository.save(steamUsage);
         log.info("Steam usage record created with ID: {}", saved.getId());
@@ -76,17 +68,8 @@ public class SteamUsageService {
         SteamUsage existingRecord = steamUsageRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("스팀 사용량 기록을 찾을 수 없습니다: " + id));
 
-        // 배출량 재계산
-        BigDecimal emission = request.getSteamUsage().multiply(STEAM_EMISSION_FACTOR);
-
-        // 업데이트
-        existingRecord.setReportingYear(request.getReportingYear());
-        existingRecord.setFacilityName(request.getFacilityName());
-        existingRecord.setSteamUsage(request.getSteamUsage());
-        existingRecord.setUnit(request.getUnit());
-        existingRecord.setCo2Emission(emission);
-        existingRecord.setCalculatedAt(LocalDateTime.now());
-        existingRecord.setUpdatedBy(request.getCreatedBy());
+        // 엔티티 업데이트
+        existingRecord.updateFromRequest(request);
 
         SteamUsage updated = steamUsageRepository.save(existingRecord);
         log.info("Steam usage record updated: {}", id);
@@ -130,5 +113,33 @@ public class SteamUsageService {
                 .createdBy(steamUsage.getCreatedBy())
                 .updatedBy(steamUsage.getUpdatedBy())
                 .build();
+    }
+
+    // 협력사별 조회 메서드들
+
+    /**
+     * 회원별 및 협력사별 스팀 사용 데이터 목록 조회
+     */
+    public List<SteamUsageResponse> getSteamUsageListByPartner(Long memberId, String partnerCompanyId) {
+        return steamUsageRepository.findByMemberIdAndPartnerCompanyIdOrderByYearDescMonthDesc(memberId, partnerCompanyId).stream()
+                .map(this::convertToResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 회원별 및 협력사별 특정 연도 스팀 사용 데이터 조회
+     */
+    public List<SteamUsageResponse> getSteamUsageByPartnerAndYear(Long memberId, String partnerCompanyId, Integer year) {
+        return steamUsageRepository.findByMemberIdAndPartnerCompanyIdAndYearOrderByMonthAsc(memberId, partnerCompanyId, year).stream()
+                .map(this::convertToResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 회원별 및 협력사별 연도별 스팀 사용 총 배출량 조회
+     */
+    public BigDecimal getTotalEmissionByPartnerAndYear(Long memberId, String partnerCompanyId, Integer year) {
+        BigDecimal totalEmission = steamUsageRepository.sumTotalEmissionByMemberIdAndPartnerCompanyIdAndYear(memberId, partnerCompanyId, year);
+        return totalEmission != null ? totalEmission : BigDecimal.ZERO;
     }
 }

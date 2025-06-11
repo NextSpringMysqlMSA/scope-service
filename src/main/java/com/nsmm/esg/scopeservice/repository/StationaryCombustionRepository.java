@@ -44,4 +44,33 @@ public interface StationaryCombustionRepository extends JpaRepository<Stationary
      */
     @Query("SELECT s.fuelType.name, SUM(s.totalEmission) FROM StationaryCombustion s WHERE s.memberId = :memberId AND s.year = :year GROUP BY s.fuelType.name")
     List<Object[]> sumEmissionByFuelTypeAndMemberIdAndYear(@Param("memberId") Long memberId, @Param("year") Integer year);
+
+    // 협력사별 조회 메서드들
+
+    /**
+     * 회원별 및 협력사별 고정연소 데이터 조회
+     */
+    List<StationaryCombustion> findByMemberIdAndPartnerCompanyIdOrderByYearDescMonthDesc(Long memberId, String partnerCompanyId);
+
+    /**
+     * 회원별 및 협력사별 특정 연도 고정연소 데이터 조회
+     */
+    List<StationaryCombustion> findByMemberIdAndPartnerCompanyIdAndYearOrderByMonthAsc(Long memberId, String partnerCompanyId, Integer year);
+
+    /**
+     * 회원별 및 협력사별 특정 연도/월 고정연소 데이터 조회
+     */
+    List<StationaryCombustion> findByMemberIdAndPartnerCompanyIdAndYearAndMonth(Long memberId, String partnerCompanyId, Integer year, Integer month);
+
+    /**
+     * 회원별 및 협력사별 연도별 총 배출량 합계
+     */
+    @Query("SELECT SUM(s.totalEmission) FROM StationaryCombustion s WHERE s.memberId = :memberId AND s.partnerCompanyId = :partnerCompanyId AND s.year = :year")
+    BigDecimal sumTotalEmissionByMemberIdAndPartnerCompanyIdAndYear(@Param("memberId") Long memberId, @Param("partnerCompanyId") String partnerCompanyId, @Param("year") Integer year);
+
+    /**
+     * 회원별 및 협력사별 월별 총 배출량 합계
+     */
+    @Query("SELECT SUM(s.totalEmission) FROM StationaryCombustion s WHERE s.memberId = :memberId AND s.partnerCompanyId = :partnerCompanyId AND s.year = :year AND s.month = :month")
+    BigDecimal sumTotalEmissionByMemberIdAndPartnerCompanyIdAndYearAndMonth(@Param("memberId") Long memberId, @Param("partnerCompanyId") String partnerCompanyId, @Param("year") Integer year, @Param("month") Integer month);
 }

@@ -1,44 +1,29 @@
 package com.nsmm.esg.scopeservice.dto;
 
-import com.nsmm.esg.scopeservice.entity.ElectricityUsage;
 import lombok.*;
 
 import java.math.BigDecimal;
 
 /**
  * Scope 2 전력 사용 요청 DTO
+ * ScopeModal에서 전송되는 데이터 구조에 맞춤
  */
 @Getter
+@Setter
 @Builder
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 public class ElectricityUsageRequest {
 
-    private Long companyId;
-    private Integer year;
-    private Integer month;
-    private String facilityName;
-    private String supplier;
-    private BigDecimal usage;
-    private BigDecimal emissionFactor;
-    private Boolean isRenewable;
-    private String notes;
-
-    /**
-     * Entity로 변환 (배출량은 서비스에서 계산)
-     */
-    public ElectricityUsage toEntity(Long memberId) {
-        return ElectricityUsage.builder()
-                .memberId(memberId)
-                .companyId(companyId)
-                .year(year)
-                .month(month)
-                .facilityName(facilityName)
-                .supplier(supplier)
-                .usage(usage)
-                .emissionFactor(emissionFactor)
-                .isRenewable(isRenewable != null ? isRenewable : false)
-                .notes(notes)
-                .build();
-    }
+    private String companyId;              // 회사/협력사 ID (UUID)
+    private Integer reportingYear;         // 보고 연도
+    private Integer reportingMonth;        // 보고 월
+    private String facilityName;           // 시설명
+    private String facilityLocation;       // 시설 위치
+    private BigDecimal electricityUsage;   // 전력 사용량
+    private String unit;                   // 단위 (kWh)
+    private Boolean isRenewable;           // 재생에너지 여부
+    private String renewableType;          // 재생에너지 타입
+    private String createdBy;              // 생성자
+    private String notes;                  // 비고
 }

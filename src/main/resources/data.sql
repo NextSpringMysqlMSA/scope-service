@@ -1,11 +1,4 @@
--- ESG Scope Service 초기 데이터 스크립트
 
--- 데이터베이스 생성 (필요시)
-CREATE DATABASE IF NOT EXISTS esg_scope 
-CHARACTER SET utf8mb4 
-COLLATE utf8mb4_unicode_ci;
-
-USE esg_scope;
 
 -- 연료 타입 마스터 데이터
 INSERT INTO fuel_type (category, name, unit, is_active, created_at, updated_at) VALUES

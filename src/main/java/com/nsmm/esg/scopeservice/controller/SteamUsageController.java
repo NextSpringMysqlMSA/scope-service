@@ -2,111 +2,279 @@ package com.nsmm.esg.scopeservice.controller;
 
 import com.nsmm.esg.scopeservice.dto.SteamUsageRequest;
 import com.nsmm.esg.scopeservice.dto.SteamUsageResponse;
+import com.nsmm.esg.scopeservice.dto.ScopeEmissionSummaryResponse;
 import com.nsmm.esg.scopeservice.service.SteamUsageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import javax.validation.Valid;
-import javax.validation.constraints.Positive;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
-@Slf4j
+/**
+ * Scope 2 스팀 사용량 컨트롤러
+ * 프론트엔드 ScopeModal과 scope.ts 서비스에서 사용하는 모든 API를 제공합니다.
+ * 협력사별 조회, 연도별 필터링, 연간 배출량 집계 차트용 API를 포함합니다.
+ */
+@Tag(name = "SteamUsage", description = "Scope 2 스팀 사용량 배출량 관리 API")
 @RestController
-@RequestMapping("/api/steam-usage")
 @RequiredArgsConstructor
-@Validated
-@Tag(name = "Steam Usage", description = "스팀 사용량 및 배출량 관리 API")
+@RequestMapping("/api/v1/scope/steam-usage")
 public class SteamUsageController {
 
     private final SteamUsageService steamUsageService;
 
+    /**
+     * X-MEMBER-ID 헤더에서 회원 ID 추출
+     */
+    private Long extractMemberId(HttpServletRequest request) {
+        String memberIdHeader = request.getHeader("X-MEMBER-ID");
+        if (memberIdHeader == null || memberIdHeader.isBlank()) {
+            return 1L; // 개발용 기본값
+        }
+        return Long.parseLong(memberIdHeader);
+    }
+
+    // =============================================================================
+    // 핵심 CRUD API - ScopeModal에서 사용
+    // =============================================================================
+
+    @Operation(summary = "스팀 사용량 데이터 생성", description = "ScopeModal에서 전송된 스팀 사용량 데이터를 생성하고 배출량을 계산합니다.")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "스팀 사용량 데이터 생성 성공"),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청 데이터"),
+        @ApiResponse(responseCode = "500", description = "서버 내부 오류")
+    })
     @PostMapping
-    @Operation(summary = "스팀 사용량 기록 생성", description = "새로운 스팀 사용량 기록을 생성합니다.")
-    public ResponseEntity<SteamUsageResponse> createSteamUsage(@Valid @RequestBody SteamUsageRequest request) {
-        log.info("Creating steam usage record for company: {}", request.getCompanyId());
-        SteamUsageResponse response = steamUsageService.create(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
-
-    @GetMapping("/{id}")
-    @Operation(summary = "스팀 사용량 기록 조회", description = "ID로 스팀 사용량 기록을 조회합니다.")
-    public ResponseEntity<SteamUsageResponse> getSteamUsage(
-            @Parameter(description = "스팀 사용량 기록 ID") @PathVariable Long id) {
-        log.info("Getting steam usage record: {}", id);
-        SteamUsageResponse response = steamUsageService.findById(id);
-        return ResponseEntity.ok(response);
-    }
-
-    @GetMapping("/company/{companyId}")
-    @Operation(summary = "회사별 스팀 사용량 목록 조회", description = "특정 회사의 스팀 사용량 기록 목록을 페이지네이션으로 조회합니다.")
-    public ResponseEntity<Page<SteamUsageResponse>> getSteamUsagesByCompany(
-            @Parameter(description = "회사 ID") @PathVariable Long companyId,
-            @Parameter(description = "페이지 번호 (0부터 시작)") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "페이지 크기") @RequestParam(defaultValue = "20") int size) {
-        log.info("Getting steam usage records for company: {}, page: {}, size: {}", companyId, page, size);
+    public ResponseEntity<SteamUsageResponse> createSteamUsage(
+            @Parameter(description = "스팀 사용량 요청 데이터", required = true)
+            @Valid @RequestBody SteamUsageRequest request,
+            HttpServletRequest httpRequest) {
         
-        Pageable pageable = PageRequest.of(page, size);
-        Page<SteamUsageResponse> responses = steamUsageService.findByCompanyId(companyId, pageable);
-        return ResponseEntity.ok(responses);
-    }
-
-    @GetMapping("/company/{companyId}/year/{year}")
-    @Operation(summary = "회사별 연도별 스팀 사용량 목록 조회", description = "특정 회사의 특정 연도 스팀 사용량 기록을 조회합니다.")
-    public ResponseEntity<List<SteamUsageResponse>> getSteamUsagesByCompanyAndYear(
-            @Parameter(description = "회사 ID") @PathVariable Long companyId,
-            @Parameter(description = "보고연도") @PathVariable Integer year) {
-        log.info("Getting steam usage records for company: {} and year: {}", companyId, year);
-        List<SteamUsageResponse> responses = steamUsageService.findByCompanyIdAndYear(companyId, year);
-        return ResponseEntity.ok(responses);
-    }
-
-    @PutMapping("/{id}")
-    @Operation(summary = "스팀 사용량 기록 수정", description = "스팀 사용량 기록을 수정합니다.")
-    public ResponseEntity<SteamUsageResponse> updateSteamUsage(
-            @Parameter(description = "스팀 사용량 기록 ID") @PathVariable Long id,
-            @Valid @RequestBody SteamUsageRequest request) {
-        log.info("Updating steam usage record: {}", id);
-        SteamUsageResponse response = steamUsageService.update(id, request);
+        Long memberId = extractMemberId(httpRequest);
+        SteamUsageResponse response = steamUsageService.createSteamUsage(memberId, request);
         return ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "스팀 사용량 데이터 수정", description = "기존 스팀 사용량 데이터를 수정하고 배출량을 재계산합니다.")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "수정 성공"),
+        @ApiResponse(responseCode = "404", description = "데이터를 찾을 수 없음"),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청 데이터")
+    })
+    @PutMapping("/{id}")
+    public ResponseEntity<SteamUsageResponse> updateSteamUsage(
+            @Parameter(description = "스팀 사용량 데이터 ID", required = true, example = "1")
+            @PathVariable Long id,
+            @Parameter(description = "수정할 스팀 사용량 요청 데이터", required = true)
+            @Valid @RequestBody SteamUsageRequest request,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        SteamUsageResponse response = steamUsageService.updateSteamUsage(id, memberId, request);
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "스팀 사용량 데이터 삭제", description = "특정 스팀 사용량 데이터를 삭제합니다.")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "204", description = "삭제 성공"),
+        @ApiResponse(responseCode = "404", description = "데이터를 찾을 수 없음")
+    })
     @DeleteMapping("/{id}")
-    @Operation(summary = "스팀 사용량 기록 삭제", description = "스팀 사용량 기록을 삭제합니다.")
     public ResponseEntity<Void> deleteSteamUsage(
-            @Parameter(description = "스팀 사용량 기록 ID") @PathVariable Long id) {
-        log.info("Deleting steam usage record: {}", id);
-        steamUsageService.delete(id);
+            @Parameter(description = "스팀 사용량 데이터 ID", required = true, example = "1")
+            @PathVariable Long id,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        steamUsageService.deleteSteamUsage(id, memberId);
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/company/{companyId}/year/{year}/total")
-    @Operation(summary = "회사별 연도별 스팀 사용 총 배출량 조회", description = "특정 회사의 특정 연도 스팀 사용 총 배출량을 조회합니다.")
-    public ResponseEntity<BigDecimal> getTotalEmissionByCompanyAndYear(
-            @Parameter(description = "회사 ID") @PathVariable @Positive Long companyId,
-            @Parameter(description = "보고연도") @PathVariable Integer year) {
-        log.info("Getting total steam usage emission for company: {} and year: {}", companyId, year);
-        BigDecimal totalEmission = steamUsageService.getTotalEmissionByCompanyAndYear(companyId, year);
+    @Operation(summary = "스팀 사용량 데이터 상세 조회", description = "특정 스팀 사용량 데이터의 상세 정보를 조회합니다.")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "조회 성공"),
+        @ApiResponse(responseCode = "404", description = "데이터를 찾을 수 없음")
+    })
+    @GetMapping("/{id}")
+    public ResponseEntity<SteamUsageResponse> getSteamUsageById(
+            @Parameter(description = "스팀 사용량 데이터 ID", required = true, example = "1")
+            @PathVariable Long id,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        SteamUsageResponse response = steamUsageService.getById(id, memberId);
+        return ResponseEntity.ok(response);
+    }
+
+    // =============================================================================
+    // 협력사별 조회 API - scope.ts에서 사용 (핵심)
+    // =============================================================================
+
+    @Operation(summary = "협력사별 연도별 스팀 사용량 데이터 조회", 
+               description = "프론트엔드 scope.ts의 fetchSteamUsageByPartnerAndYear에서 사용하는 핵심 API입니다.")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "조회 성공"),
+        @ApiResponse(responseCode = "404", description = "데이터를 찾을 수 없음")
+    })
+    @GetMapping("/partner/{partnerCompanyId}/year/{year}")
+    public ResponseEntity<List<SteamUsageResponse>> getSteamUsageByPartnerAndYear(
+            @Parameter(description = "협력사 ID (UUID)", required = true, example = "550e8400-e29b-41d4-a716-446655440000")
+            @PathVariable String partnerCompanyId,
+            @Parameter(description = "보고 연도", required = true, example = "2024")
+            @PathVariable Integer year,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        List<SteamUsageResponse> responses = steamUsageService.getByPartnerAndYear(memberId, partnerCompanyId, year);
+        return ResponseEntity.ok(responses);
+    }
+
+    @Operation(summary = "협력사별 스팀 사용량 데이터 전체 조회", description = "특정 협력사의 모든 스팀 사용량 데이터를 조회합니다.")
+    @GetMapping("/partner/{partnerCompanyId}")
+    public ResponseEntity<List<SteamUsageResponse>> getSteamUsageByPartner(
+            @Parameter(description = "협력사 ID (UUID)", required = true, example = "550e8400-e29b-41d4-a716-446655440000")
+            @PathVariable String partnerCompanyId,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        List<SteamUsageResponse> responses = steamUsageService.getByPartner(memberId, partnerCompanyId);
+        return ResponseEntity.ok(responses);
+    }
+
+    // =============================================================================
+    // 연간 배출량 집계 및 차트용 API
+    // =============================================================================
+
+    @Operation(summary = "월별 배출량 집계", description = "특정 연도의 월별 스팀 사용량 배출량을 집계합니다. 연간 배출량 차트에 사용됩니다.")
+    @GetMapping("/summary/monthly")
+    public ResponseEntity<List<ScopeEmissionSummaryResponse>> getMonthlyEmissionSummary(
+            @Parameter(description = "보고 연도", required = true, example = "2024")
+            @RequestParam Integer year,
+            @Parameter(description = "협력사 ID (선택사항)", example = "550e8400-e29b-41d4-a716-446655440000")
+            @RequestParam(required = false) String partnerCompanyId,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        List<ScopeEmissionSummaryResponse> summaries = steamUsageService.getMonthlyEmissionSummary(memberId, year, partnerCompanyId);
+        return ResponseEntity.ok(summaries);
+    }
+
+    @Operation(summary = "시설별 배출량 집계", description = "특정 연도의 시설별 스팀 사용량 배출량을 집계합니다.")
+    @GetMapping("/summary/by-facility")
+    public ResponseEntity<List<ScopeEmissionSummaryResponse>> getEmissionSummaryByFacility(
+            @Parameter(description = "보고 연도", required = true, example = "2024")
+            @RequestParam Integer year,
+            @Parameter(description = "협력사 ID (선택사항)", example = "550e8400-e29b-41d4-a716-446655440000")
+            @RequestParam(required = false) String partnerCompanyId,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        List<ScopeEmissionSummaryResponse> summaries = steamUsageService.getEmissionSummaryByFacility(memberId, year, partnerCompanyId);
+        return ResponseEntity.ok(summaries);
+    }
+
+    @Operation(summary = "협력사별 배출량 집계", description = "특정 연도의 협력사별 스팀 사용량 배출량을 집계합니다. 대시보드 차트에 사용됩니다.")
+    @GetMapping("/summary/by-partner")
+    public ResponseEntity<List<ScopeEmissionSummaryResponse>> getEmissionSummaryByPartner(
+            @Parameter(description = "보고 연도", required = true, example = "2024")
+            @RequestParam Integer year,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        List<ScopeEmissionSummaryResponse> summaries = steamUsageService.getEmissionSummaryByPartner(memberId, year);
+        return ResponseEntity.ok(summaries);
+    }
+
+    @Operation(summary = "스팀 타입별 배출량 집계", description = "특정 연도의 스팀 타입별 배출량을 집계합니다.")
+    @GetMapping("/summary/by-steam-type")
+    public ResponseEntity<List<ScopeEmissionSummaryResponse>> getEmissionSummaryBySteamType(
+            @Parameter(description = "보고 연도", required = true, example = "2024")
+            @RequestParam Integer year,
+            @Parameter(description = "협력사 ID (선택사항)", example = "550e8400-e29b-41d4-a716-446655440000")
+            @RequestParam(required = false) String partnerCompanyId,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        List<ScopeEmissionSummaryResponse> summaries = steamUsageService.getEmissionSummaryBySteamType(memberId, year, partnerCompanyId);
+        return ResponseEntity.ok(summaries);
+    }
+
+    @Operation(summary = "스팀 공급업체별 배출량 집계", description = "특정 연도의 스팀 공급업체별 배출량을 집계합니다.")
+    @GetMapping("/summary/by-supplier")
+    public ResponseEntity<List<ScopeEmissionSummaryResponse>> getEmissionSummaryBySupplier(
+            @Parameter(description = "보고 연도", required = true, example = "2024")
+            @RequestParam Integer year,
+            @Parameter(description = "협력사 ID (선택사항)", example = "550e8400-e29b-41d4-a716-446655440000")
+            @RequestParam(required = false) String partnerCompanyId,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        List<ScopeEmissionSummaryResponse> summaries = steamUsageService.getEmissionSummaryBySupplier(memberId, year, partnerCompanyId);
+        return ResponseEntity.ok(summaries);
+    }
+
+    @Operation(summary = "연도별 총 배출량 조회", description = "특정 연도의 총 스팀 사용량 배출량을 조회합니다.")
+    @GetMapping("/total-emission/year/{year}")
+    public ResponseEntity<BigDecimal> getTotalEmissionByYear(
+            @Parameter(description = "보고 연도", required = true, example = "2024")
+            @PathVariable Integer year,
+            @Parameter(description = "협력사 ID (선택사항)", example = "550e8400-e29b-41d4-a716-446655440000")
+            @RequestParam(required = false) String partnerCompanyId,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        BigDecimal totalEmission = steamUsageService.getTotalEmissionByYear(memberId, year, partnerCompanyId);
         return ResponseEntity.ok(totalEmission);
     }
 
-    @GetMapping("/company/{companyId}/year/{year}/summary")
-    @Operation(summary = "회사별 연도별 시설별 배출량 요약", description = "특정 회사의 특정 연도 시설별 배출량 요약을 조회합니다.")
-    public ResponseEntity<List<Object[]>> getEmissionSummaryByFacility(
-            @Parameter(description = "회사 ID") @PathVariable @Positive Long companyId,
-            @Parameter(description = "보고연도") @PathVariable Integer year) {
-        log.info("Getting steam usage emission summary by facility for company: {} and year: {}", companyId, year);
-        List<Object[]> summary = steamUsageService.getEmissionSummaryByFacility(companyId, year);
-        return ResponseEntity.ok(summary);
+    // =============================================================================
+    // 기본 조회 API
+    // =============================================================================
+
+    @Operation(summary = "스팀 사용량 데이터 전체 목록 조회", description = "회원의 모든 스팀 사용량 데이터를 조회합니다.")
+    @GetMapping
+    public ResponseEntity<List<SteamUsageResponse>> getAllSteamUsage(
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        List<SteamUsageResponse> responses = steamUsageService.getAllByMember(memberId);
+        return ResponseEntity.ok(responses);
+    }
+
+    @Operation(summary = "연도별 스팀 사용량 데이터 조회", description = "특정 연도의 모든 스팀 사용량 데이터를 조회합니다.")
+    @GetMapping("/year/{year}")
+    public ResponseEntity<List<SteamUsageResponse>> getSteamUsageByYear(
+            @Parameter(description = "보고 연도", required = true, example = "2024")
+            @PathVariable Integer year,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        List<SteamUsageResponse> responses = steamUsageService.getByYear(memberId, year);
+        return ResponseEntity.ok(responses);
+    }
+
+    // =============================================================================
+    // 대시보드 통계 API
+    // =============================================================================
+
+    @Operation(summary = "대시보드용 스팀 사용량 통계", description = "대시보드에서 사용할 스팀 사용량 관련 통계 정보를 제공합니다.")
+    @GetMapping("/dashboard/stats")
+    public ResponseEntity<Map<String, Object>> getDashboardStats(
+            @Parameter(description = "보고 연도", required = true, example = "2024")
+            @RequestParam Integer year,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        Map<String, Object> stats = steamUsageService.getDashboardStats(memberId, year);
+        return ResponseEntity.ok(stats);
     }
 }

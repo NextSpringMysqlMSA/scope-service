@@ -2,111 +2,279 @@ package com.nsmm.esg.scopeservice.controller;
 
 import com.nsmm.esg.scopeservice.dto.MobileCombustionRequest;
 import com.nsmm.esg.scopeservice.dto.MobileCombustionResponse;
+import com.nsmm.esg.scopeservice.dto.ScopeEmissionSummaryResponse;
 import com.nsmm.esg.scopeservice.service.MobileCombustionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import javax.validation.Valid;
-import javax.validation.constraints.Positive;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
-@Slf4j
+/**
+ * Scope 1 이동연소 컨트롤러
+ * 프론트엔드 ScopeModal과 scope.ts 서비스에서 사용하는 모든 API를 제공합니다.
+ * 협력사별 조회, 연도별 필터링, 연간 배출량 집계 차트용 API를 포함합니다.
+ */
+@Tag(name = "MobileCombustion", description = "Scope 1 이동연소 배출량 관리 API")
 @RestController
-@RequestMapping("/api/mobile-combustion")
 @RequiredArgsConstructor
-@Validated
-@Tag(name = "Mobile Combustion", description = "모바일 연소 배출량 관리 API")
+@RequestMapping("/api/v1/scope/mobile-combustion")
 public class MobileCombustionController {
 
     private final MobileCombustionService mobileCombustionService;
 
+    /**
+     * X-MEMBER-ID 헤더에서 회원 ID 추출
+     */
+    private Long extractMemberId(HttpServletRequest request) {
+        String memberIdHeader = request.getHeader("X-MEMBER-ID");
+        if (memberIdHeader == null || memberIdHeader.isBlank()) {
+            return 1L; // 개발용 기본값
+        }
+        return Long.parseLong(memberIdHeader);
+    }
+
+    // =============================================================================
+    // 핵심 CRUD API - ScopeModal에서 사용
+    // =============================================================================
+
+    @Operation(summary = "이동연소 데이터 생성", description = "ScopeModal에서 전송된 이동연소 데이터를 생성하고 배출량을 계산합니다.")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "이동연소 데이터 생성 성공"),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청 데이터"),
+        @ApiResponse(responseCode = "500", description = "서버 내부 오류")
+    })
     @PostMapping
-    @Operation(summary = "모바일 연소 배출량 기록 생성", description = "새로운 모바일 연소 배출량 기록을 생성합니다.")
-    public ResponseEntity<MobileCombustionResponse> createMobileCombustion(@Valid @RequestBody MobileCombustionRequest request) {
-        log.info("Creating mobile combustion record for company: {}", request.getCompanyId());
-        MobileCombustionResponse response = mobileCombustionService.create(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
-
-    @GetMapping("/{id}")
-    @Operation(summary = "모바일 연소 배출량 기록 조회", description = "ID로 모바일 연소 배출량 기록을 조회합니다.")
-    public ResponseEntity<MobileCombustionResponse> getMobileCombustion(
-            @Parameter(description = "모바일 연소 기록 ID") @PathVariable Long id) {
-        log.info("Getting mobile combustion record: {}", id);
-        MobileCombustionResponse response = mobileCombustionService.findById(id);
-        return ResponseEntity.ok(response);
-    }
-
-    @GetMapping("/company/{companyId}")
-    @Operation(summary = "회사별 모바일 연소 배출량 목록 조회", description = "특정 회사의 모바일 연소 배출량 기록 목록을 페이지네이션으로 조회합니다.")
-    public ResponseEntity<Page<MobileCombustionResponse>> getMobileCombustionsByCompany(
-            @Parameter(description = "회사 ID") @PathVariable Long companyId,
-            @Parameter(description = "페이지 번호 (0부터 시작)") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "페이지 크기") @RequestParam(defaultValue = "20") int size) {
-        log.info("Getting mobile combustion records for company: {}, page: {}, size: {}", companyId, page, size);
+    public ResponseEntity<MobileCombustionResponse> createMobileCombustion(
+            @Parameter(description = "이동연소 요청 데이터", required = true)
+            @Valid @RequestBody MobileCombustionRequest request,
+            HttpServletRequest httpRequest) {
         
-        Pageable pageable = PageRequest.of(page, size);
-        Page<MobileCombustionResponse> responses = mobileCombustionService.findByCompanyId(companyId, pageable);
-        return ResponseEntity.ok(responses);
-    }
-
-    @GetMapping("/company/{companyId}/year/{year}")
-    @Operation(summary = "회사별 연도별 모바일 연소 배출량 목록 조회", description = "특정 회사의 특정 연도 모바일 연소 배출량 기록을 조회합니다.")
-    public ResponseEntity<List<MobileCombustionResponse>> getMobileCombustionsByCompanyAndYear(
-            @Parameter(description = "회사 ID") @PathVariable Long companyId,
-            @Parameter(description = "보고연도") @PathVariable Integer year) {
-        log.info("Getting mobile combustion records for company: {} and year: {}", companyId, year);
-        List<MobileCombustionResponse> responses = mobileCombustionService.findByCompanyIdAndYear(companyId, year);
-        return ResponseEntity.ok(responses);
-    }
-
-    @PutMapping("/{id}")
-    @Operation(summary = "모바일 연소 배출량 기록 수정", description = "모바일 연소 배출량 기록을 수정합니다.")
-    public ResponseEntity<MobileCombustionResponse> updateMobileCombustion(
-            @Parameter(description = "모바일 연소 기록 ID") @PathVariable Long id,
-            @Valid @RequestBody MobileCombustionRequest request) {
-        log.info("Updating mobile combustion record: {}", id);
-        MobileCombustionResponse response = mobileCombustionService.update(id, request);
+        Long memberId = extractMemberId(httpRequest);
+        MobileCombustionResponse response = mobileCombustionService.createMobileCombustion(memberId, request);
         return ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "이동연소 데이터 수정", description = "기존 이동연소 데이터를 수정하고 배출량을 재계산합니다.")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "수정 성공"),
+        @ApiResponse(responseCode = "404", description = "데이터를 찾을 수 없음"),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청 데이터")
+    })
+    @PutMapping("/{id}")
+    public ResponseEntity<MobileCombustionResponse> updateMobileCombustion(
+            @Parameter(description = "이동연소 데이터 ID", required = true, example = "1")
+            @PathVariable Long id,
+            @Parameter(description = "수정할 이동연소 요청 데이터", required = true)
+            @Valid @RequestBody MobileCombustionRequest request,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        MobileCombustionResponse response = mobileCombustionService.updateMobileCombustion(id, memberId, request);
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "이동연소 데이터 삭제", description = "특정 이동연소 데이터를 삭제합니다.")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "204", description = "삭제 성공"),
+        @ApiResponse(responseCode = "404", description = "데이터를 찾을 수 없음")
+    })
     @DeleteMapping("/{id}")
-    @Operation(summary = "모바일 연소 배출량 기록 삭제", description = "모바일 연소 배출량 기록을 삭제합니다.")
     public ResponseEntity<Void> deleteMobileCombustion(
-            @Parameter(description = "모바일 연소 기록 ID") @PathVariable Long id) {
-        log.info("Deleting mobile combustion record: {}", id);
-        mobileCombustionService.delete(id);
+            @Parameter(description = "이동연소 데이터 ID", required = true, example = "1")
+            @PathVariable Long id,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        mobileCombustionService.deleteMobileCombustion(id, memberId);
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/company/{companyId}/year/{year}/total")
-    @Operation(summary = "회사별 연도별 모바일 연소 총 배출량 조회", description = "특정 회사의 특정 연도 모바일 연소 총 배출량을 조회합니다.")
-    public ResponseEntity<BigDecimal> getTotalEmissionByCompanyAndYear(
-            @Parameter(description = "회사 ID") @PathVariable @Positive Long companyId,
-            @Parameter(description = "보고연도") @PathVariable Integer year) {
-        log.info("Getting total mobile combustion emission for company: {} and year: {}", companyId, year);
-        BigDecimal totalEmission = mobileCombustionService.getTotalEmissionByCompanyAndYear(companyId, year);
+    @Operation(summary = "이동연소 데이터 상세 조회", description = "특정 이동연소 데이터의 상세 정보를 조회합니다.")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "조회 성공"),
+        @ApiResponse(responseCode = "404", description = "데이터를 찾을 수 없음")
+    })
+    @GetMapping("/{id}")
+    public ResponseEntity<MobileCombustionResponse> getMobileCombustionById(
+            @Parameter(description = "이동연소 데이터 ID", required = true, example = "1")
+            @PathVariable Long id,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        MobileCombustionResponse response = mobileCombustionService.getById(id, memberId);
+        return ResponseEntity.ok(response);
+    }
+
+    // =============================================================================
+    // 협력사별 조회 API - scope.ts에서 사용 (핵심)
+    // =============================================================================
+
+    @Operation(summary = "협력사별 연도별 이동연소 데이터 조회", 
+               description = "프론트엔드 scope.ts의 fetchMobileCombustionByPartnerAndYear에서 사용하는 핵심 API입니다.")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "조회 성공"),
+        @ApiResponse(responseCode = "404", description = "데이터를 찾을 수 없음")
+    })
+    @GetMapping("/partner/{partnerCompanyId}/year/{year}")
+    public ResponseEntity<List<MobileCombustionResponse>> getMobileCombustionByPartnerAndYear(
+            @Parameter(description = "협력사 ID (UUID)", required = true, example = "550e8400-e29b-41d4-a716-446655440000")
+            @PathVariable String partnerCompanyId,
+            @Parameter(description = "보고 연도", required = true, example = "2024")
+            @PathVariable Integer year,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        List<MobileCombustionResponse> responses = mobileCombustionService.getByPartnerAndYear(memberId, partnerCompanyId, year);
+        return ResponseEntity.ok(responses);
+    }
+
+    @Operation(summary = "협력사별 이동연소 데이터 전체 조회", description = "특정 협력사의 모든 이동연소 데이터를 조회합니다.")
+    @GetMapping("/partner/{partnerCompanyId}")
+    public ResponseEntity<List<MobileCombustionResponse>> getMobileCombustionByPartner(
+            @Parameter(description = "협력사 ID (UUID)", required = true, example = "550e8400-e29b-41d4-a716-446655440000")
+            @PathVariable String partnerCompanyId,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        List<MobileCombustionResponse> responses = mobileCombustionService.getByPartner(memberId, partnerCompanyId);
+        return ResponseEntity.ok(responses);
+    }
+
+    // =============================================================================
+    // 연간 배출량 집계 및 차트용 API
+    // =============================================================================
+
+    @Operation(summary = "월별 배출량 집계", description = "특정 연도의 월별 이동연소 배출량을 집계합니다. 연간 배출량 차트에 사용됩니다.")
+    @GetMapping("/summary/monthly")
+    public ResponseEntity<List<ScopeEmissionSummaryResponse>> getMonthlyEmissionSummary(
+            @Parameter(description = "보고 연도", required = true, example = "2024")
+            @RequestParam Integer year,
+            @Parameter(description = "협력사 ID (선택사항)", example = "550e8400-e29b-41d4-a716-446655440000")
+            @RequestParam(required = false) String partnerCompanyId,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        List<ScopeEmissionSummaryResponse> summaries = mobileCombustionService.getMonthlyEmissionSummary(memberId, year, partnerCompanyId);
+        return ResponseEntity.ok(summaries);
+    }
+
+    @Operation(summary = "연료별 배출량 집계", description = "특정 연도의 연료 타입별 이동연소 배출량을 집계합니다.")
+    @GetMapping("/summary/by-fuel")
+    public ResponseEntity<List<ScopeEmissionSummaryResponse>> getEmissionSummaryByFuel(
+            @Parameter(description = "보고 연도", required = true, example = "2024")
+            @RequestParam Integer year,
+            @Parameter(description = "협력사 ID (선택사항)", example = "550e8400-e29b-41d4-a716-446655440000")
+            @RequestParam(required = false) String partnerCompanyId,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        List<ScopeEmissionSummaryResponse> summaries = mobileCombustionService.getEmissionSummaryByFuel(memberId, year, partnerCompanyId);
+        return ResponseEntity.ok(summaries);
+    }
+
+    @Operation(summary = "시설별 배출량 집계", description = "특정 연도의 시설별 이동연소 배출량을 집계합니다.")
+    @GetMapping("/summary/by-facility")
+    public ResponseEntity<List<ScopeEmissionSummaryResponse>> getEmissionSummaryByFacility(
+            @Parameter(description = "보고 연도", required = true, example = "2024")
+            @RequestParam Integer year,
+            @Parameter(description = "협력사 ID (선택사항)", example = "550e8400-e29b-41d4-a716-446655440000")
+            @RequestParam(required = false) String partnerCompanyId,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        List<ScopeEmissionSummaryResponse> summaries = mobileCombustionService.getEmissionSummaryByFacility(memberId, year, partnerCompanyId);
+        return ResponseEntity.ok(summaries);
+    }
+
+    @Operation(summary = "협력사별 배출량 집계", description = "특정 연도의 협력사별 이동연소 배출량을 집계합니다. 대시보드 차트에 사용됩니다.")
+    @GetMapping("/summary/by-partner")
+    public ResponseEntity<List<ScopeEmissionSummaryResponse>> getEmissionSummaryByPartner(
+            @Parameter(description = "보고 연도", required = true, example = "2024")
+            @RequestParam Integer year,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        List<ScopeEmissionSummaryResponse> summaries = mobileCombustionService.getEmissionSummaryByPartner(memberId, year);
+        return ResponseEntity.ok(summaries);
+    }
+
+    @Operation(summary = "차량별 배출량 집계", description = "특정 연도의 차량 타입별 이동연소 배출량을 집계합니다.")
+    @GetMapping("/summary/by-vehicle")
+    public ResponseEntity<List<ScopeEmissionSummaryResponse>> getEmissionSummaryByVehicle(
+            @Parameter(description = "보고 연도", required = true, example = "2024")
+            @RequestParam Integer year,
+            @Parameter(description = "협력사 ID (선택사항)", example = "550e8400-e29b-41d4-a716-446655440000")
+            @RequestParam(required = false) String partnerCompanyId,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        List<ScopeEmissionSummaryResponse> summaries = mobileCombustionService.getEmissionSummaryByVehicle(memberId, year, partnerCompanyId);
+        return ResponseEntity.ok(summaries);
+    }
+
+    @Operation(summary = "연도별 총 배출량 조회", description = "특정 연도의 총 이동연소 배출량을 조회합니다.")
+    @GetMapping("/total-emission/year/{year}")
+    public ResponseEntity<BigDecimal> getTotalEmissionByYear(
+            @Parameter(description = "보고 연도", required = true, example = "2024")
+            @PathVariable Integer year,
+            @Parameter(description = "협력사 ID (선택사항)", example = "550e8400-e29b-41d4-a716-446655440000")
+            @RequestParam(required = false) String partnerCompanyId,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        BigDecimal totalEmission = mobileCombustionService.getTotalEmissionByYear(memberId, year, partnerCompanyId);
         return ResponseEntity.ok(totalEmission);
     }
 
-    @GetMapping("/company/{companyId}/year/{year}/summary")
-    @Operation(summary = "회사별 연도별 차량 유형별 배출량 요약", description = "특정 회사의 특정 연도 차량 유형별 배출량 요약을 조회합니다.")
-    public ResponseEntity<List<Object[]>> getEmissionSummaryByVehicleType(
-            @Parameter(description = "회사 ID") @PathVariable @Positive Long companyId,
-            @Parameter(description = "보고연도") @PathVariable Integer year) {
-        log.info("Getting mobile combustion emission summary by vehicle type for company: {} and year: {}", companyId, year);
-        List<Object[]> summary = mobileCombustionService.getEmissionSummaryByVehicleType(companyId, year);
-        return ResponseEntity.ok(summary);
+    // =============================================================================
+    // 기본 조회 API
+    // =============================================================================
+
+    @Operation(summary = "이동연소 데이터 전체 목록 조회", description = "회원의 모든 이동연소 데이터를 조회합니다.")
+    @GetMapping
+    public ResponseEntity<List<MobileCombustionResponse>> getAllMobileCombustion(
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        List<MobileCombustionResponse> responses = mobileCombustionService.getAllByMember(memberId);
+        return ResponseEntity.ok(responses);
+    }
+
+    @Operation(summary = "연도별 이동연소 데이터 조회", description = "특정 연도의 모든 이동연소 데이터를 조회합니다.")
+    @GetMapping("/year/{year}")
+    public ResponseEntity<List<MobileCombustionResponse>> getMobileCombustionByYear(
+            @Parameter(description = "보고 연도", required = true, example = "2024")
+            @PathVariable Integer year,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        List<MobileCombustionResponse> responses = mobileCombustionService.getByYear(memberId, year);
+        return ResponseEntity.ok(responses);
+    }
+
+    // =============================================================================
+    // 대시보드 통계 API
+    // =============================================================================
+
+    @Operation(summary = "대시보드용 이동연소 통계", description = "대시보드에서 사용할 이동연소 관련 통계 정보를 제공합니다.")
+    @GetMapping("/dashboard/stats")
+    public ResponseEntity<Map<String, Object>> getDashboardStats(
+            @Parameter(description = "보고 연도", required = true, example = "2024")
+            @RequestParam Integer year,
+            HttpServletRequest httpRequest) {
+        
+        Long memberId = extractMemberId(httpRequest);
+        Map<String, Object> stats = mobileCombustionService.getDashboardStats(memberId, year);
+        return ResponseEntity.ok(stats);
     }
 }

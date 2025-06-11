@@ -32,4 +32,25 @@ public interface FuelTypeRepository extends JpaRepository<FuelType, Long> {
      */
     @Query("SELECT COUNT(f) FROM FuelType f WHERE f.category = :category AND f.isActive = true")
     Long countByCategoryAndIsActiveTrue(@Param("category") String category);
+
+    /**
+     * 이름순으로 모든 연료 타입 조회
+     */
+    List<FuelType> findAllByOrderByName();
+
+    /**
+     * 카테고리별 이름순 연료 타입 조회
+     */
+    List<FuelType> findByCategoryOrderByName(String category);
+
+    /**
+     * 연료명 존재 여부 확인
+     */
+    boolean existsByName(String name);
+
+    /**
+     * 고유 카테고리 목록 조회
+     */
+    @Query("SELECT DISTINCT f.category FROM FuelType f WHERE f.isActive = true ORDER BY f.category")
+    List<String> findDistinctCategories();
 }

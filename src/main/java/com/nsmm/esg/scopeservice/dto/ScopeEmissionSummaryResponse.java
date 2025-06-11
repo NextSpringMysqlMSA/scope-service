@@ -9,6 +9,7 @@ import java.util.List;
  * Scope 배출량 요약 응답 DTO
  */
 @Getter
+@Setter
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
@@ -21,6 +22,7 @@ public class ScopeEmissionSummaryResponse {
     private BigDecimal totalEmission;
 
     @Getter
+    @Setter
     @Builder
     @AllArgsConstructor
     @NoArgsConstructor
@@ -32,6 +34,7 @@ public class ScopeEmissionSummaryResponse {
     }
 
     @Getter
+    @Setter
     @Builder
     @AllArgsConstructor
     @NoArgsConstructor
@@ -42,6 +45,7 @@ public class ScopeEmissionSummaryResponse {
     }
 
     @Getter
+    @Setter
     @Builder
     @AllArgsConstructor
     @NoArgsConstructor

@@ -1,29 +1,38 @@
 package com.nsmm.esg.scopeservice.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-@Data
+/**
+ * Scope 2 스팀 사용 응답 DTO
+ * 프론트엔드에서 필요한 데이터 구조에 맞춤
+ */
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class SteamUsageResponse {
 
     private Long id;
-    private Long companyId;
-    private Integer reportingYear;
-    private String facilityName;
-    private BigDecimal steamUsage;
-    private String unit;
-    private BigDecimal co2Emission;
-    private LocalDateTime calculatedAt;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
-    private String createdBy;
-    private String updatedBy;
+    private String companyId;              // 회사/협력사 ID (UUID)
+    private Integer reportingYear;         // 보고 연도
+    private Integer reportingMonth;        // 보고 월
+    private String facilityName;           // 시설명
+    private String facilityLocation;       // 시설 위치
+    private String steamType;              // 스팀 타입
+    private BigDecimal steamUsage;         // 스팀 사용량
+    private String unit;                   // 단위 (GJ)
+    
+    // 계산된 배출량 정보
+    private BigDecimal co2Emission;        // CO2 배출량
+    private BigDecimal totalEmission;      // 총 배출량
+    private LocalDateTime calculatedAt;    // 계산 일시
+    
+    private String createdBy;              // 생성자
+    private String notes;                  // 비고
+    private LocalDateTime createdAt;       // 생성일시
+    private LocalDateTime updatedAt;       // 수정일시
 }

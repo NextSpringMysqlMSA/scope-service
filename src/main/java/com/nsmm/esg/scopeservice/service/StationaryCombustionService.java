@@ -36,14 +36,10 @@ public class StationaryCombustionService {
             FuelType fuelType = fuelTypeRepository.findById(request.getFuelTypeId())
                     .orElseThrow(() -> new IllegalArgumentException("연료 타입을 찾을 수 없습니다: " + request.getFuelTypeId()));
 
-            // 2. 배출량 계산
-            EmissionCalculationService.EmissionResult emissionResult = 
-                    calculationService.calculateScope1Emission(request.getFuelTypeId(), request.getUsage(), request.getYear());
-
-            // 3. 엔티티 생성 및 저장
-            StationaryCombustion entity = request.toEntity(memberId);
+            // 2. 엔티티 생성
+            StationaryCombustion entity = request.toEntity(memberId, fuelType);
             entity = StationaryCombustion.builder()
-                    .memberId(entity.getMemberId())
+                    .memberId(memberId)
                     .companyId(entity.getCompanyId())
                     .year(entity.getYear())
                     .month(entity.getMonth())
@@ -51,12 +47,18 @@ public class StationaryCombustionService {
                     .facilityName(entity.getFacilityName())
                     .facilityType(entity.getFacilityType())
                     .usage(entity.getUsage())
-                    .co2Emission(emissionResult.getCo2Emission())
-                    .ch4Emission(emissionResult.getCh4Emission())
-                    .n2oEmission(emissionResult.getN2oEmission())
-                    .totalEmission(emissionResult.getTotalEmission())
+                    .co2Emission(BigDecimal.ZERO) // 초기값
+                    .ch4Emission(BigDecimal.ZERO) // 초기값
+                    .n2oEmission(BigDecimal.ZERO) // 초기값
+                    .totalEmission(BigDecimal.ZERO) // 초기값
                     .notes(entity.getNotes())
                     .build();
+
+            // 3. 배출량 계산 및 업데이트
+            EmissionCalculationService.EmissionResult emissionResult = 
+                    calculationService.calculateScope1Emission(request.getFuelTypeId(), request.getUsage(), request.getYear());
+            entity.updateEmissions(emissionResult.getCo2Emission(), emissionResult.getCh4Emission(),
+                                 emissionResult.getN2oEmission(), emissionResult.getTotalEmission());
 
             StationaryCombustion savedEntity = stationaryCombustionRepository.save(entity);
             log.info("고정연소 데이터 저장 완료 - ID: {}, 배출량: {} tCO2eq", 
@@ -115,30 +117,10 @@ public class StationaryCombustionService {
             FuelType fuelType = fuelTypeRepository.findById(request.getFuelTypeId())
                     .orElseThrow(() -> new IllegalArgumentException("연료 타입을 찾을 수 없습니다: " + request.getFuelTypeId()));
 
-            // 4. 배출량 재계산
-            EmissionCalculationService.EmissionResult emissionResult = 
-                    calculationService.calculateScope1Emission(request.getFuelTypeId(), request.getUsage(), request.getYear());
+            // 4. 엔티티 업데이트
+            entity.updateFromRequest(request, fuelType);
 
-            // 5. 엔티티 업데이트
-            StationaryCombustion updatedEntity = StationaryCombustion.builder()
-                    .id(entity.getId())
-                    .memberId(entity.getMemberId())
-                    .companyId(request.getCompanyId())
-                    .year(request.getYear())
-                    .month(request.getMonth())
-                    .fuelType(fuelType)
-                    .facilityName(request.getFacilityName())
-                    .facilityType(request.getFacilityType())
-                    .usage(request.getUsage())
-                    .co2Emission(emissionResult.getCo2Emission())
-                    .ch4Emission(emissionResult.getCh4Emission())
-                    .n2oEmission(emissionResult.getN2oEmission())
-                    .totalEmission(emissionResult.getTotalEmission())
-                    .notes(request.getNotes())
-                    .createdAt(entity.getCreatedAt())
-                    .build();
-
-            stationaryCombustionRepository.save(updatedEntity);
+            stationaryCombustionRepository.save(entity);
             log.info("고정연소 데이터 수정 완료 - ID: {}", id);
 
         } catch (Exception e) {
@@ -167,5 +149,33 @@ public class StationaryCombustionService {
             log.error("고정연소 데이터 삭제 중 오류 발생: {}", e.getMessage());
             throw new RuntimeException("고정연소 데이터 삭제 실패", e);
         }
+    }
+
+    // 협력사별 조회 메서드들
+
+    /**
+     * 회원별 및 협력사별 고정연소 데이터 목록 조회
+     */
+    public List<StationaryCombustionResponse> getStationaryCombustionListByPartner(Long memberId, String partnerCompanyId) {
+        return stationaryCombustionRepository.findByMemberIdAndPartnerCompanyIdOrderByYearDescMonthDesc(memberId, partnerCompanyId).stream()
+                .map(StationaryCombustionResponse::fromEntity)
+                .toList();
+    }
+
+    /**
+     * 회원별 및 협력사별 특정 연도 고정연소 데이터 조회
+     */
+    public List<StationaryCombustionResponse> getStationaryCombustionByPartnerAndYear(Long memberId, String partnerCompanyId, Integer year) {
+        return stationaryCombustionRepository.findByMemberIdAndPartnerCompanyIdAndYearOrderByMonthAsc(memberId, partnerCompanyId, year).stream()
+                .map(StationaryCombustionResponse::fromEntity)
+                .toList();
+    }
+
+    /**
+     * 회원별 및 협력사별 연도별 고정연소 총 배출량 조회
+     */
+    public BigDecimal getTotalEmissionByPartnerAndYear(Long memberId, String partnerCompanyId, Integer year) {
+        BigDecimal totalEmission = stationaryCombustionRepository.sumTotalEmissionByMemberIdAndPartnerCompanyIdAndYear(memberId, partnerCompanyId, year);
+        return totalEmission != null ? totalEmission : BigDecimal.ZERO;
     }
 }

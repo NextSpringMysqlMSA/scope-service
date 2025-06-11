@@ -1,5 +1,6 @@
 package com.nsmm.esg.scopeservice.entity;
 
+import com.nsmm.esg.scopeservice.dto.StationaryCombustionRequest;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -7,6 +8,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * Scope 1 고정연소 데이터 엔티티
@@ -14,12 +16,11 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Getter
-@Setter
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "stationary_combustion")
-public class StationaryCombustion implements Identifiable<Long> {
+public class StationaryCombustion {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -28,39 +29,56 @@ public class StationaryCombustion implements Identifiable<Long> {
     @Column(nullable = false)
     private Long memberId;         // 회원 ID
 
-    @Column(nullable = false)
-    private Long companyId;        // 회사 ID
+    @Column(nullable = false, length = 36)
+    private String companyId;      // 회사/협력사 ID (UUID)
 
     @Column(nullable = false)
-    private Integer year;          // 데이터 연도
+    private Integer reportingYear;     // 보고 연도 (ScopeModal의 reportingYear)
 
     @Column(nullable = false)
-    private Integer month;         // 데이터 월
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "fuel_type_id", nullable = false)
-    private FuelType fuelType;     // 연료 타입
+    private Integer reportingMonth;    // 보고 월 (ScopeModal의 reportingMonth)
 
     @Column(nullable = false, length = 100)
-    private String facilityName;   // 시설명
+    private String facilityName;   // 시설명 (ScopeModal의 facilityName)
+
+    @Column(length = 100)
+    private String facilityLocation; // 시설 위치 (ScopeModal의 facilityLocation)
 
     @Column(nullable = false, length = 50)
-    private String facilityType;   // 시설 유형 (보일러, 발전기, 히터 등)
+    private String combustionType; // 연소 타입 (LIQUID, SOLID, GAS)
+
+    @Column(nullable = false, length = 50)
+    private String fuelId;         // 연료 ID (ScopeModal의 fuelId)
+
+    @Column(length = 100)
+    private String fuelName;       // 연료명
 
     @Column(nullable = false, precision = 15, scale = 4)
-    private BigDecimal usage;      // 연료 사용량
+    private BigDecimal fuelUsage;  // 연료 사용량 (ScopeModal의 fuelUsage)
 
-    @Column(nullable = false, precision = 15, scale = 4)
+    @Column(nullable = false, length = 20)
+    private String unit;           // 단위 (L, kg, m³ 등)
+
+    // 계산된 배출량 정보
+    @Column(precision = 15, scale = 4)
     private BigDecimal co2Emission;    // CO2 배출량 (tCO2)
 
-    @Column(nullable = false, precision = 15, scale = 4)
+    @Column(precision = 15, scale = 4)
     private BigDecimal ch4Emission;    // CH4 배출량 (tCO2eq)
 
-    @Column(nullable = false, precision = 15, scale = 4)
+    @Column(precision = 15, scale = 4)
     private BigDecimal n2oEmission;    // N2O 배출량 (tCO2eq)
 
-    @Column(nullable = false, precision = 15, scale = 4)
-    private BigDecimal totalEmission;  // 총 배출량 (tCO2eq)
+    @Column(precision = 15, scale = 4)
+    private BigDecimal totalCo2Equivalent; // 총 배출량 (tCO2eq)
+
+    private LocalDateTime calculatedAt;    // 계산 일시
+
+    @Column(length = 100)
+    private String createdBy;      // 생성자 (ScopeModal의 createdBy)
+
+    @Column(length = 100)
+    private String createdBy;      // 생성자 (ScopeModal의 createdBy)
 
     @Column(length = 500)
     private String notes;          // 비고
@@ -72,4 +90,36 @@ public class StationaryCombustion implements Identifiable<Long> {
     @UpdateTimestamp
     @Column(nullable = false)
     private LocalDateTime updatedAt;
+
+    /**
+     * ScopeModal 폼 데이터로 엔티티 업데이트
+     */
+    public void updateFromScopeModal(String companyId, Integer reportingYear, Integer reportingMonth,
+                                   String facilityName, String facilityLocation, String combustionType,
+                                   String fuelId, String fuelName, BigDecimal fuelUsage, String unit,
+                                   String createdBy) {
+        this.companyId = companyId;
+        this.reportingYear = reportingYear;
+        this.reportingMonth = reportingMonth;
+        this.facilityName = facilityName;
+        this.facilityLocation = facilityLocation;
+        this.combustionType = combustionType;
+        this.fuelId = fuelId;
+        this.fuelName = fuelName;
+        this.fuelUsage = fuelUsage;
+        this.unit = unit;
+        this.createdBy = createdBy;
+    }
+
+    /**
+     * 계산된 배출량 정보 업데이트
+     */
+    public void updateEmissions(BigDecimal co2Emission, BigDecimal ch4Emission, 
+                               BigDecimal n2oEmission, BigDecimal totalCo2Equivalent) {
+        this.co2Emission = co2Emission;
+        this.ch4Emission = ch4Emission;
+        this.n2oEmission = n2oEmission;
+        this.totalCo2Equivalent = totalCo2Equivalent;
+        this.calculatedAt = LocalDateTime.now();
+    }
 }

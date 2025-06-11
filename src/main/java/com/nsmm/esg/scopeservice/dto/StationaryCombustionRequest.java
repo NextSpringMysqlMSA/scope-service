@@ -1,41 +1,30 @@
 package com.nsmm.esg.scopeservice.dto;
 
-import com.nsmm.esg.scopeservice.entity.StationaryCombustion;
 import lombok.*;
 
 import java.math.BigDecimal;
 
 /**
  * Scope 1 고정연소 요청 DTO
+ * ScopeModal에서 전송되는 데이터 구조에 맞춤
  */
 @Getter
+@Setter
 @Builder
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 public class StationaryCombustionRequest {
 
-    private Long companyId;
-    private Integer year;
-    private Integer month;
-    private Long fuelTypeId;
-    private String facilityName;
-    private String facilityType;
-    private BigDecimal usage;
-    private String notes;
-
-    /**
-     * Entity로 변환 (배출량은 서비스에서 계산)
-     */
-    public StationaryCombustion toEntity(Long memberId) {
-        return StationaryCombustion.builder()
-                .memberId(memberId)
-                .companyId(companyId)
-                .year(year)
-                .month(month)
-                .facilityName(facilityName)
-                .facilityType(facilityType)
-                .usage(usage)
-                .notes(notes)
-                .build();
-    }
+    private String companyId;              // 회사/협력사 ID (UUID)
+    private Integer reportingYear;         // 보고 연도
+    private Integer reportingMonth;        // 보고 월
+    private String facilityName;           // 시설명
+    private String facilityLocation;       // 시설 위치
+    private String combustionType;         // 연소 타입 (LIQUID, SOLID, GAS)
+    private String fuelId;                 // 연료 ID
+    private String fuelName;               // 연료명
+    private BigDecimal fuelUsage;          // 연료 사용량
+    private String unit;                   // 단위
+    private String createdBy;              // 생성자
+    private String notes;                  // 비고
 }
