@@ -8,7 +8,6 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 /**
  * Scope 2 스팀 사용 데이터 엔티티
@@ -33,37 +32,38 @@ public class SteamUsage {
     private String companyId;      // 회사/협력사 ID (UUID)
 
     @Column(nullable = false)
-    private Integer reportingYear;     // 보고 연도 (ScopeModal의 reportingYear)
+    private Integer reportingYear;     // 보고 연도
 
     @Column(nullable = false)
-    private Integer reportingMonth;    // 보고 월 (ScopeModal의 reportingMonth)
+    private Integer reportingMonth;    // 보고 월
 
     @Column(nullable = false, length = 100)
-    private String facilityName;   // 시설명 (ScopeModal의 facilityName)
+    private String facilityName;   // 시설명
 
     @Column(length = 100)
-    private String facilityLocation; // 시설 위치 (ScopeModal의 facilityLocation)
+    private String facilityLocation; // 시설 위치
 
+    // 🎯 스팀 전용 필드들
     @Column(nullable = false, length = 50)
-    private String steamType;      // 스팀 타입 (ScopeModal의 steamType)
+    private String steamType;      // 스팀 타입 (고압, 중압, 저압 등)
 
     @Column(nullable = false, precision = 15, scale = 4)
-    private BigDecimal steamUsage; // 스팀 사용량 (ScopeModal의 steamUsage)
+    private BigDecimal usage;      // 스팀 사용량
 
     @Column(nullable = false, length = 20)
-    private String unit;           // 단위 (GJ)
+    private String unit;           // 단위 (GJ, MJ 등)
 
-    // 계산된 배출량 정보
+    // 🎯 스팀 배출량 (CO2만)
     @Column(precision = 15, scale = 4)
     private BigDecimal co2Emission;     // CO2 배출량 (tCO2)
 
     @Column(precision = 15, scale = 4)
-    private BigDecimal totalEmission;   // 총 배출량 (tCO2eq)
+    private BigDecimal totalCo2Equivalent; // 총 CO2 등가량 (스팀은 CO2와 동일)
 
     private LocalDateTime calculatedAt; // 계산 일시
 
     @Column(length = 100)
-    private String createdBy;      // 생성자 (ScopeModal의 createdBy)
+    private String createdBy;      // 생성자
 
     @Column(length = 500)
     private String notes;          // 비고
@@ -77,28 +77,28 @@ public class SteamUsage {
     private LocalDateTime updatedAt;
 
     /**
-     * ScopeModal 폼 데이터로 엔티티 업데이트
+     * SteamUsageRequest로 엔티티 업데이트 (스팀 전용)
      */
-    public void updateFromScopeModal(String companyId, Integer reportingYear, Integer reportingMonth,
-                                   String facilityName, String facilityLocation, String steamType,
-                                   BigDecimal steamUsage, String unit, String createdBy) {
-        this.companyId = companyId;
-        this.reportingYear = reportingYear;
-        this.reportingMonth = reportingMonth;
-        this.facilityName = facilityName;
-        this.facilityLocation = facilityLocation;
-        this.steamType = steamType;
-        this.steamUsage = steamUsage;
-        this.unit = unit;
-        this.createdBy = createdBy;
+    public void updateFromRequest(SteamUsageRequest request) {
+        this.memberId = request.getMemberId();
+        this.companyId = request.getCompanyId();
+        this.reportingYear = request.getReportingYear();
+        this.reportingMonth = request.getReportingMonth();
+        this.facilityName = request.getFacilityName();
+        this.facilityLocation = request.getFacilityLocation();
+        this.steamType = request.getSteamType();
+        this.usage = request.getUsage();
+        this.unit = request.getUnit();
+        this.createdBy = request.getCreatedBy();  // 누락된 필드 추가
+        this.notes = request.getNotes();
     }
 
     /**
-     * 계산된 배출량 정보 업데이트
+     * 계산된 배출량 정보 업데이트 (스팀은 CO2만)
      */
-    public void updateEmissions(BigDecimal co2Emission, BigDecimal totalEmission) {
+    public void updateEmissions(BigDecimal co2Emission) {
         this.co2Emission = co2Emission;
-        this.totalEmission = totalEmission;
+        this.totalCo2Equivalent = co2Emission; // 스팀은 CO2와 동일
         this.calculatedAt = LocalDateTime.now();
     }
 }

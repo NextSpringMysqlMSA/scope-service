@@ -2,15 +2,21 @@ package com.nsmm.esg.scopeservice.service;
 
 import com.nsmm.esg.scopeservice.dto.ElectricityUsageRequest;
 import com.nsmm.esg.scopeservice.dto.ElectricityUsageResponse;
+import com.nsmm.esg.scopeservice.dto.ScopeEmissionSummaryResponse;
 import com.nsmm.esg.scopeservice.entity.ElectricityUsage;
 import com.nsmm.esg.scopeservice.repository.ElectricityUsageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Scope 2 전력 사용 서비스
@@ -24,102 +30,80 @@ public class ElectricityUsageService {
     private final EmissionCalculationService calculationService;
 
     /**
-     * 전력 사용 데이터 저장
+     * 전력 사용 데이터 생성
      */
     @Transactional
-    public Long createElectricityUsage(Long memberId, ElectricityUsageRequest request) {
+    public ElectricityUsageResponse createElectricityUsage(Long memberId, ElectricityUsageRequest request) {
         try {
-            // 1. 엔티티 생성
-            ElectricityUsage entity = request.toEntity(memberId);
-            entity = ElectricityUsage.builder()
+            ElectricityUsage entity = ElectricityUsage.builder()
                     .memberId(memberId)
-                    .companyId(entity.getCompanyId())
-                    .year(entity.getYear())
-                    .month(entity.getMonth())
-                    .facilityName(entity.getFacilityName())
-                    .supplier(entity.getSupplier())
-                    .usage(entity.getUsage())
-                    .emissionFactor(entity.getEmissionFactor())
-                    .totalEmission(BigDecimal.ZERO) // 초기값
-                    .isRenewable(entity.getIsRenewable())
-                    .notes(entity.getNotes())
+                    .companyId(request.getCompanyId())
+                    .reportingYear(request.getReportingYear())
+                    .reportingMonth(request.getReportingMonth())
+                    .facilityLocation(request.getFacilityLocation())
+                    .combustionType(request.getCombustionType())
+                    .fuelId(request.getFuelId())
+                    .fuelName(request.getFuelName())
+                    .unit(request.getUnit())
+                    .distance(request.getDistance())
+                    .isRenewable(request.getIsRenewable())
+                    .renewableType(request.getRenewableType())
+                    .usage(request.getUsage())
+                    .notes(request.getNotes())
                     .build();
 
-            // 2. 배출량 계산 및 업데이트
-            BigDecimal totalEmission = calculationService.calculateElectricityEmission(
-                    entity.getUsage(), entity.getEmissionFactor());
-            entity.updateEmissions(totalEmission);
+            // 배출량 계산
+            BigDecimal totalCo2Equivalent = calculationService.calculateElectricityEmission(
+                    entity.getUsage(), entity.getIsRenewable());
+            entity.updateEmissions(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, totalCo2Equivalent);
 
-            ElectricityUsage savedEntity = electricityUsageRepository.save(entity);
-            log.info("전력 사용 데이터 저장 완료 - ID: {}, 배출량: {} tCO2eq", 
-                    savedEntity.getId(), savedEntity.getTotalEmission());
-
-            return savedEntity.getId();
-
+            ElectricityUsage saved = electricityUsageRepository.save(entity);
+            return ElectricityUsageResponse.from(saved);
         } catch (Exception e) {
-            log.error("전력 사용 데이터 저장 중 오류 발생: {}", e.getMessage());
-            throw new RuntimeException("전력 사용 데이터 저장 실패", e);
+            log.error("전력 사용 데이터 생성 실패: memberId={}, error={}", memberId, e.getMessage());
+            throw new RuntimeException("전력 사용 데이터 생성에 실패했습니다.", e);
         }
-    }
-
-    /**
-     * 회원별 전력 사용 데이터 목록 조회
-     */
-    public List<ElectricityUsageResponse> getElectricityUsageList(Long memberId) {
-        return electricityUsageRepository.findByMemberIdOrderByYearDescMonthDesc(memberId).stream()
-                .map(ElectricityUsageResponse::fromEntity)
-                .toList();
-    }
-
-    /**
-     * 회원별 특정 연도 전력 사용 데이터 조회
-     */
-    public List<ElectricityUsageResponse> getElectricityUsageByYear(Long memberId, Integer year) {
-        return electricityUsageRepository.findByMemberIdAndYearOrderByMonthAsc(memberId, year).stream()
-                .map(ElectricityUsageResponse::fromEntity)
-                .toList();
-    }
-
-    /**
-     * 회원별 연도별 전력 총 배출량 조회
-     */
-    public BigDecimal getTotalEmissionByYear(Long memberId, Integer year) {
-        BigDecimal totalEmission = electricityUsageRepository.sumTotalEmissionByMemberIdAndYear(memberId, year);
-        return totalEmission != null ? totalEmission : BigDecimal.ZERO;
-    }
-
-    /**
-     * 회원별 연도별 전력 총 사용량 조회
-     */
-    public BigDecimal getTotalUsageByYear(Long memberId, Integer year) {
-        BigDecimal totalUsage = electricityUsageRepository.sumUsageByMemberIdAndYear(memberId, year);
-        return totalUsage != null ? totalUsage : BigDecimal.ZERO;
     }
 
     /**
      * 전력 사용 데이터 수정
      */
     @Transactional
-    public void updateElectricityUsage(Long id, Long memberId, ElectricityUsageRequest request) {
+    public ElectricityUsageResponse updateElectricityUsage(Long memberId, Long id, ElectricityUsageRequest request) {
         try {
-            // 1. 기존 데이터 조회
             ElectricityUsage entity = electricityUsageRepository.findById(id)
                     .orElseThrow(() -> new IllegalArgumentException("전력 사용 데이터를 찾을 수 없습니다: " + id));
 
-            // 2. 권한 확인
             if (!entity.getMemberId().equals(memberId)) {
-                throw new IllegalArgumentException("해당 데이터에 대한 접근 권한이 없습니다.");
+                throw new IllegalArgumentException("권한이 없습니다.");
             }
 
-            // 3. 엔티티 업데이트
-            entity.updateFromRequest(request);
+            entity.updateFromScopeModal(
+                    request.getCompanyId(),
+                    request.getReportingYear(),
+                    request.getReportingMonth(),
+                    request.getFacilityLocation(),
+                    request.getCombustionType(),
+                    request.getFuelId(),
+                    request.getFuelName(),
+                    request.getUnit(),
+                    request.getDistance(),
+                    request.getIsRenewable(),
+                    request.getRenewableType(),
+                    request.getUsage(),
+                    request.getNotes()
+            );
 
-            electricityUsageRepository.save(entity);
-            log.info("전력 사용 데이터 수정 완료 - ID: {}", id);
+            // 배출량 재계산
+            BigDecimal totalCo2Equivalent = calculationService.calculateElectricityEmission(
+                    entity.getUsage(), entity.getIsRenewable());
+            entity.updateEmissions(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, totalCo2Equivalent);
 
+            ElectricityUsage saved = electricityUsageRepository.save(entity);
+            return ElectricityUsageResponse.from(saved);
         } catch (Exception e) {
-            log.error("전력 사용 데이터 수정 중 오류 발생: {}", e.getMessage());
-            throw new RuntimeException("전력 사용 데이터 수정 실패", e);
+            log.error("전력 사용 데이터 수정 실패: id={}, error={}", id, e.getMessage());
+            throw new RuntimeException("전력 사용 데이터 수정에 실패했습니다.", e);
         }
     }
 
@@ -127,49 +111,146 @@ public class ElectricityUsageService {
      * 전력 사용 데이터 삭제
      */
     @Transactional
-    public void deleteElectricityUsage(Long id, Long memberId) {
+    public void deleteElectricityUsage(Long memberId, Long id) {
         try {
             ElectricityUsage entity = electricityUsageRepository.findById(id)
                     .orElseThrow(() -> new IllegalArgumentException("전력 사용 데이터를 찾을 수 없습니다: " + id));
 
             if (!entity.getMemberId().equals(memberId)) {
-                throw new IllegalArgumentException("해당 데이터에 대한 접근 권한이 없습니다.");
+                throw new IllegalArgumentException("권한이 없습니다.");
             }
 
             electricityUsageRepository.delete(entity);
-            log.info("전력 사용 데이터 삭제 완료 - ID: {}", id);
-
         } catch (Exception e) {
-            log.error("전력 사용 데이터 삭제 중 오류 발생: {}", e.getMessage());
-            throw new RuntimeException("전력 사용 데이터 삭제 실패", e);
+            log.error("전력 사용 데이터 삭제 실패: id={}, error={}", id, e.getMessage());
+            throw new RuntimeException("전력 사용 데이터 삭제에 실패했습니다.", e);
         }
     }
 
-    // 협력사별 조회 메서드들
-
     /**
-     * 회원별 및 협력사별 전력 사용 데이터 목록 조회
+     * 전력 사용 데이터 상세 조회
      */
-    public List<ElectricityUsageResponse> getElectricityUsageListByPartner(Long memberId, String partnerCompanyId) {
-        return electricityUsageRepository.findByMemberIdAndPartnerCompanyIdOrderByYearDescMonthDesc(memberId, partnerCompanyId).stream()
-                .map(ElectricityUsageResponse::fromEntity)
-                .toList();
+    @Transactional(readOnly = true)
+    public ElectricityUsageResponse getElectricityUsage(Long memberId, Long id) {
+        ElectricityUsage entity = electricityUsageRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("전력 사용 데이터를 찾을 수 없습니다: " + id));
+
+        if (!entity.getMemberId().equals(memberId)) {
+            throw new IllegalArgumentException("권한이 없습니다.");
+        }
+
+        return ElectricityUsageResponse.from(entity);
     }
 
     /**
-     * 회원별 및 협력사별 특정 연도 전력 사용 데이터 조회
+     * 전력 사용 데이터 목록 조회
      */
-    public List<ElectricityUsageResponse> getElectricityUsageByPartnerAndYear(Long memberId, String partnerCompanyId, Integer year) {
-        return electricityUsageRepository.findByMemberIdAndPartnerCompanyIdAndYearOrderByMonthAsc(memberId, partnerCompanyId, year).stream()
-                .map(ElectricityUsageResponse::fromEntity)
-                .toList();
+    @Transactional(readOnly = true)
+    public Page<ElectricityUsageResponse> getElectricityUsages(Long memberId, Pageable pageable) {
+        Page<ElectricityUsage> entities = electricityUsageRepository.findByMemberIdOrderByCreatedAtDesc(memberId, pageable);
+        return entities.map(ElectricityUsageResponse::from);
     }
 
     /**
-     * 회원별 및 협력사별 연도별 전력 사용 총 배출량 조회
+     * 연도별 전력 사용 데이터 조회
      */
-    public BigDecimal getTotalEmissionByPartnerAndYear(Long memberId, String partnerCompanyId, Integer year) {
-        BigDecimal totalEmission = electricityUsageRepository.sumTotalEmissionByMemberIdAndPartnerCompanyIdAndYear(memberId, partnerCompanyId, year);
-        return totalEmission != null ? totalEmission : BigDecimal.ZERO;
+    @Transactional(readOnly = true)
+    public Page<ElectricityUsageResponse> getElectricityUsagesByYear(Integer year, Pageable pageable) {
+        Page<ElectricityUsage> entities = electricityUsageRepository.findByReportingYearOrderByCreatedAtDesc(year, pageable);
+        return entities.map(ElectricityUsageResponse::from);
+    }
+
+    /**
+     * 협력사별 전력 사용 데이터 조회 (프론트엔드 핵심 API)
+     */
+    @Transactional(readOnly = true)
+    public List<ElectricityUsageResponse> getElectricityUsagesByPartner(Long memberId, String companyId, Integer year) {
+        List<ElectricityUsage> entities = electricityUsageRepository.findByMemberIdAndCompanyIdAndReportingYear(memberId, companyId, year);
+        return entities.stream()
+                .map(ElectricityUsageResponse::from)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 월별 배출량 집계
+     */
+    @Transactional(readOnly = true)
+    public ScopeEmissionSummaryResponse getMonthlyEmissions(Long memberId, Integer year) {
+        Map<String, BigDecimal> monthlyData = electricityUsageRepository.getMonthlyEmissionsMap(memberId, year);
+        
+        ScopeEmissionSummaryResponse response = new ScopeEmissionSummaryResponse();
+        response.setMonthlyData(monthlyData);
+        response.setTotalEmission(monthlyData.values().stream()
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+        response.setYear(year);
+        response.setScope("Scope 2 - 전력 사용");
+        
+        return response;
+    }
+
+    /**
+     * 재생에너지별 배출량 집계
+     */
+    @Transactional(readOnly = true)
+    public ScopeEmissionSummaryResponse getRenewableEmissions(Long memberId, Integer year) {
+        Map<String, BigDecimal> renewableData = electricityUsageRepository.getRenewableEmissionsMap(memberId, year);
+        
+        ScopeEmissionSummaryResponse response = new ScopeEmissionSummaryResponse();
+        response.setRenewableData(renewableData);
+        response.setTotalEmission(renewableData.values().stream()
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+        response.setYear(year);
+        response.setScope("Scope 2 - 재생에너지별");
+        
+        return response;
+    }
+
+    /**
+     * 시설별 배출량 집계
+     */
+    @Transactional(readOnly = true)
+    public ScopeEmissionSummaryResponse getFacilityEmissions(Long memberId, Integer year) {
+        Map<String, BigDecimal> facilityData = electricityUsageRepository.getFacilityEmissionsMap(memberId, year);
+        
+        ScopeEmissionSummaryResponse response = new ScopeEmissionSummaryResponse();
+        response.setFacilityData(facilityData);
+        response.setTotalEmission(facilityData.values().stream()
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+        response.setYear(year);
+        response.setScope("Scope 2 - 시설별");
+        
+        return response;
+    }
+
+    /**
+     * 협력사별 배출량 집계
+     */
+    @Transactional(readOnly = true)
+    public ScopeEmissionSummaryResponse getPartnerEmissions(Long memberId, Integer year) {
+        Map<String, BigDecimal> partnerData = electricityUsageRepository.getPartnerEmissionsMap(memberId, year);
+        
+        ScopeEmissionSummaryResponse response = new ScopeEmissionSummaryResponse();
+        response.setPartnerData(partnerData);
+        response.setTotalEmission(partnerData.values().stream()
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+        response.setYear(year);
+        response.setScope("Scope 2 - 협력사별");
+        
+        return response;
+    }
+
+    /**
+     * 대시보드 통계 조회
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getDashboardStats(Long memberId) {
+        LocalDateTime lastMonth = LocalDateTime.now().minusMonths(1);
+        Object[] stats = electricityUsageRepository.findDashboardStats(memberId, lastMonth);
+        
+        return Map.of(
+                "totalRecords", stats[0] != null ? stats[0] : 0L,
+                "totalEmissions", stats[1] != null ? stats[1] : BigDecimal.ZERO,
+                "recentRecords", stats[2] != null ? stats[2] : 0L
+        );
     }
 }

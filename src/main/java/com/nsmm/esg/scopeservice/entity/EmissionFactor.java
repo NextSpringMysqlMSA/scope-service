@@ -35,20 +35,20 @@ public class EmissionFactor {
     private BigDecimal ch4Factor;    // CH4 배출계수 (kgCH4/TJ)
 
     @Column(nullable = false, precision = 12, scale = 4)
-    private BigDecimal n2oFactor;    // N2O 배출계수 (kgN2O/TJ)
+    private BigDecimal n2oFactor;    // N2O 배출계수 (kgN2O/TJ) - 추가 필요
 
     @Column(nullable = false)
-    private Integer year;           // 적용 연도
+    private Integer year;            // 적용 연도 - 추가 필요
 
     @Column(nullable = false)
     @Builder.Default
-    private Boolean isActive = true;
+    private Boolean isActive = true; // 활성화 여부 - 추가 필요
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private LocalDateTime createdAt; // 추가 필요
 
     @UpdateTimestamp
     @Column(nullable = false)
-    private LocalDateTime updatedAt;
+    private LocalDateTime updatedAt; // 추가 필요
 }

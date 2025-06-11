@@ -80,30 +80,24 @@ public class ElectricityUsage {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-    /**
-     * ScopeModal 폼 데이터로 엔티티 업데이트
-     */
-    public void updateFromScopeModal(String companyId, Integer reportingYear, Integer reportingMonth,
-                                   String facilityName, String facilityLocation, BigDecimal electricityUsage,
-                                   String unit, Boolean isRenewable, String renewableType, String createdBy) {
-        this.companyId = companyId;
-        this.reportingYear = reportingYear;
-        this.reportingMonth = reportingMonth;
-        this.facilityName = facilityName;
-        this.facilityLocation = facilityLocation;
-        this.electricityUsage = electricityUsage;
-        this.unit = unit;
-        this.isRenewable = isRenewable;
-        this.renewableType = renewableType;
-        this.createdBy = createdBy;
+    public void updateFromRequest(ElectricityUsageRequest request) {
+        this.memberId = request.getMemberId();
+        this.companyId = request.getCompanyId();
+        this.reportingYear = request.getReportingYear();
+        this.reportingMonth = request.getReportingMonth();
+        this.facilityName = request.getFacilityName();
+        this.facilityLocation = request.getFacilityLocation();
+        this.electricityUsage = request.getElectricityUsage();
+        this.unit = request.getUnit();
+        this.isRenewable = request.getIsRenewable();
+        this.renewableType = request.getRenewableType();
+        this.createdBy = request.getCreatedBy();
+        this.notes = request.getNotes();
     }
 
-    /**
-     * 계산된 배출량 정보 업데이트
-     */
-    public void updateEmissions(BigDecimal co2Emission, BigDecimal totalEmission) {
-        this.co2Emission = co2Emission;
-        this.totalEmission = totalEmission;
-        this.calculatedAt = LocalDateTime.now();
-    }
+    public void updateEmissions(BigDecimal co2Emission) {
+    this.co2Emission = co2Emission;
+    this.totalEmission = co2Emission; // 전력은 CO2와 동일
+    this.calculatedAt = LocalDateTime.now();
+}
 }

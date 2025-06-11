@@ -9,102 +9,102 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 
 @Repository
 public interface SteamUsageRepository extends JpaRepository<SteamUsage, Long> {
 
-    /**
-     * 회원별 스팀 사용 데이터 조회
-     */
-    List<SteamUsage> findByMemberIdOrderByYearDescMonthDesc(Long memberId);
+    // 기본 조회 메서드들
+    Page<SteamUsage> findByMemberIdOrderByCreatedAtDesc(Long memberId, Pageable pageable);
 
-    /**
-     * 회원별 특정 연도 스팀 사용 데이터 조회
-     */
-    List<SteamUsage> findByMemberIdAndYearOrderByMonthAsc(Long memberId, Integer year);
+    List<SteamUsage> findByMemberIdAndReportingYear(Long memberId, Integer reportingYear);
 
-    /**
-     * 회원별 특정 연도/월 스팀 사용 데이터 조회
-     */
-    List<SteamUsage> findByMemberIdAndYearAndMonth(Long memberId, Integer year, Integer month);
+    List<SteamUsage> findByMemberIdAndCompanyId(Long memberId, String companyId);
 
-    /**
-     * 회원별 연도별 총 배출량 합계
-     */
-    @Query("SELECT SUM(s.totalEmission) FROM SteamUsage s WHERE s.memberId = :memberId AND s.year = :year")
-    BigDecimal sumTotalEmissionByMemberIdAndYear(@Param("memberId") Long memberId, @Param("year") Integer year);
+    List<SteamUsage> findByMemberIdAndCompanyIdAndReportingYear(Long memberId, String companyId, Integer reportingYear);
 
-    /**
-     * 회원별 월별 총 배출량 합계
-     */
-    @Query("SELECT SUM(s.totalEmission) FROM SteamUsage s WHERE s.memberId = :memberId AND s.year = :year AND s.month = :month")
-    BigDecimal sumTotalEmissionByMemberIdAndYearAndMonth(@Param("memberId") Long memberId, @Param("year") Integer year, @Param("month") Integer month);
+    Page<SteamUsage> findByReportingYearOrderByCreatedAtDesc(Integer reportingYear, Pageable pageable);
 
-    /**
-     * 회원별 스팀 사용량 합계
-     */
-    @Query("SELECT SUM(s.usage) FROM SteamUsage s WHERE s.memberId = :memberId AND s.year = :year")
-    BigDecimal sumUsageByMemberIdAndYear(@Param("memberId") Long memberId, @Param("year") Integer year);
+    // 집계 쿼리들
+    @Query("SELECT s.reportingMonth, SUM(s.totalCo2Equivalent) " +
+            "FROM SteamUsage s " +
+            "WHERE s.memberId = :memberId AND s.reportingYear = :year " +
+            "GROUP BY s.reportingMonth " +
+            "ORDER BY s.reportingMonth")
+    List<Object[]> findMonthlyEmissions(@Param("memberId") Long memberId, @Param("year") Integer year);
 
-    /**
-     * 공급업체별 배출량 집계
-     */
-    @Query("SELECT s.supplier, SUM(s.totalEmission) FROM SteamUsage s WHERE s.memberId = :memberId AND s.year = :year GROUP BY s.supplier")
-    List<Object[]> sumEmissionBySupplierAndMemberIdAndYear(@Param("memberId") Long memberId, @Param("year") Integer year);
+    @Query("SELECT s.steamType, SUM(s.totalCo2Equivalent) " +
+            "FROM SteamUsage s " +
+            "WHERE s.memberId = :memberId AND s.reportingYear = :year " +
+            "GROUP BY s.steamType " +
+            "ORDER BY SUM(s.totalCo2Equivalent) DESC")
+    List<Object[]> findSteamTypeEmissions(@Param("memberId") Long memberId, @Param("year") Integer year);
 
-    // 협력사별 조회 메서드들
+    @Query("SELECT s.facilityLocation, SUM(s.totalCo2Equivalent) " +
+            "FROM SteamUsage s " +
+            "WHERE s.memberId = :memberId AND s.reportingYear = :year " +
+            "GROUP BY s.facilityLocation " +
+            "ORDER BY SUM(s.totalCo2Equivalent) DESC")
+    List<Object[]> findFacilityEmissions(@Param("memberId") Long memberId, @Param("year") Integer year);
 
-    /**
-     * 회원별 및 협력사별 스팀 사용 데이터 조회
-     */
-    List<SteamUsage> findByMemberIdAndPartnerCompanyIdOrderByYearDescMonthDesc(Long memberId, String partnerCompanyId);
+    @Query("SELECT s.companyId, SUM(s.totalCo2Equivalent) " +
+            "FROM SteamUsage s " +
+            "WHERE s.memberId = :memberId AND s.reportingYear = :year " +
+            "GROUP BY s.companyId " +
+            "ORDER BY SUM(s.totalCo2Equivalent) DESC")
+    List<Object[]> findPartnerEmissions(@Param("memberId") Long memberId, @Param("year") Integer year);
 
-    /**
-     * 회원별 및 협력사별 특정 연도 스팀 사용 데이터 조회
-     */
-    List<SteamUsage> findByMemberIdAndPartnerCompanyIdAndYearOrderByMonthAsc(Long memberId, String partnerCompanyId, Integer year);
+    // 대시보드 통계용
+    @Query("SELECT COUNT(s), SUM(s.totalCo2Equivalent), " +
+            "SUM(CASE WHEN s.createdAt >= :startDate THEN 1 ELSE 0 END) " +
+            "FROM SteamUsage s " +
+            "WHERE s.memberId = :memberId")
+    Object[] findDashboardStats(@Param("memberId") Long memberId, @Param("startDate") java.time.LocalDateTime startDate);
 
-    /**
-     * 회원별 및 협력사별 특정 연도/월 스팀 사용 데이터 조회
-     */
-    List<SteamUsage> findByMemberIdAndPartnerCompanyIdAndYearAndMonth(Long memberId, String partnerCompanyId, Integer year, Integer month);
+    // 헬퍼 메서드들
+    default Map<String, BigDecimal> getMonthlyEmissionsMap(Long memberId, Integer year) {
+        List<Object[]> results = findMonthlyEmissions(memberId, year);
+        Map<String, BigDecimal> map = new LinkedHashMap<>();
+        for (Object[] result : results) {
+            Integer month = (Integer) result[0];
+            BigDecimal emission = (BigDecimal) result[1];
+            map.put(month.toString(), emission != null ? emission : BigDecimal.ZERO);
+        }
+        return map;
+    }
 
-    /**
-     * 회원별 및 협력사별 연도별 총 배출량 합계
-     */
-    @Query("SELECT SUM(s.totalEmission) FROM SteamUsage s WHERE s.memberId = :memberId AND s.partnerCompanyId = :partnerCompanyId AND s.year = :year")
-    BigDecimal sumTotalEmissionByMemberIdAndPartnerCompanyIdAndYear(@Param("memberId") Long memberId, @Param("partnerCompanyId") String partnerCompanyId, @Param("year") Integer year);
+    default Map<String, BigDecimal> getSteamTypeEmissionsMap(Long memberId, Integer year) {
+        List<Object[]> results = findSteamTypeEmissions(memberId, year);
+        Map<String, BigDecimal> map = new LinkedHashMap<>();
+        for (Object[] result : results) {
+            String steamType = (String) result[0];
+            BigDecimal emission = (BigDecimal) result[1];
+            map.put(steamType, emission != null ? emission : BigDecimal.ZERO);
+        }
+        return map;
+    }
 
-    /**
-     * 회원별 및 협력사별 월별 총 배출량 합계
-     */
-    @Query("SELECT SUM(s.totalEmission) FROM SteamUsage s WHERE s.memberId = :memberId AND s.partnerCompanyId = :partnerCompanyId AND s.year = :year AND s.month = :month")
-    BigDecimal sumTotalEmissionByMemberIdAndPartnerCompanyIdAndYearAndMonth(@Param("memberId") Long memberId, @Param("partnerCompanyId") String partnerCompanyId, @Param("year") Integer year, @Param("month") Integer month);
+    default Map<String, BigDecimal> getFacilityEmissionsMap(Long memberId, Integer year) {
+        List<Object[]> results = findFacilityEmissions(memberId, year);
+        Map<String, BigDecimal> map = new LinkedHashMap<>();
+        for (Object[] result : results) {
+            String facilityLocation = (String) result[0];
+            BigDecimal emission = (BigDecimal) result[1];
+            map.put(facilityLocation, emission != null ? emission : BigDecimal.ZERO);
+        }
+        return map;
+    }
 
-    // Service에서 사용되는 추가 메서드들
-
-    /**
-     * 회사별 스팀 사용 데이터 조회 (생성일 역순)
-     */
-    @Query("SELECT s FROM SteamUsage s WHERE s.companyId = :companyId ORDER BY s.createdAt DESC")
-    Page<SteamUsage> findByCompanyIdOrderByCreatedAtDesc(@Param("companyId") Long companyId, Pageable pageable);
-
-    /**
-     * 회사별 및 연도별 스팀 사용 데이터 조회
-     */
-    List<SteamUsage> findByCompanyIdAndReportingYear(Long companyId, Integer reportingYear);
-
-    /**
-     * 회사별 및 연도별 CO2 배출량 합계
-     */
-    @Query("SELECT SUM(s.co2Emission) FROM SteamUsage s WHERE s.companyId = :companyId AND s.reportingYear = :year")
-    Optional<BigDecimal> sumCo2EmissionByCompanyIdAndYear(@Param("companyId") Long companyId, @Param("year") Integer year);
-
-    /**
-     * 시설별 배출량 합계
-     */
-    @Query("SELECT s.facilityName, SUM(s.co2Emission) FROM SteamUsage s WHERE s.companyId = :companyId AND s.reportingYear = :year GROUP BY s.facilityName")
-    List<Object[]> sumEmissionByFacility(@Param("companyId") Long companyId, @Param("year") Integer year);
+    default Map<String, BigDecimal> getPartnerEmissionsMap(Long memberId, Integer year) {
+        List<Object[]> results = findPartnerEmissions(memberId, year);
+        Map<String, BigDecimal> map = new LinkedHashMap<>();
+        for (Object[] result : results) {
+            String companyId = (String) result[0];
+            BigDecimal emission = (BigDecimal) result[1];
+            map.put(companyId, emission != null ? emission : BigDecimal.ZERO);
+        }
+        return map;
+    }
 }

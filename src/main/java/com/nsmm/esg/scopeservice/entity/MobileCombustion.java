@@ -88,24 +88,24 @@ public class MobileCombustion {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-    /**
-     * ScopeModal 폼 데이터로 엔티티 업데이트
-     */
-    public void updateFromScopeModal(String companyId, Integer reportingYear, Integer reportingMonth,
-                                   String vehicleType, String transportType, String fuelId, String fuelName,
-                                   BigDecimal fuelUsage, String unit, BigDecimal distance, String createdBy) {
-        this.companyId = companyId;
-        this.reportingYear = reportingYear;
-        this.reportingMonth = reportingMonth;
-        this.vehicleType = vehicleType;
-        this.transportType = transportType;
-        this.fuelId = fuelId;
-        this.fuelName = fuelName;
-        this.fuelUsage = fuelUsage;
-        this.unit = unit;
-        this.distance = distance;
-        this.createdBy = createdBy;
-    }
+/**
+ * 수정: MobileCombustionRequest로 엔티티 업데이트
+ */
+public void updateFromRequest(MobileCombustionRequest request) {
+    this.memberId = request.getMemberId();
+    this.companyId = request.getCompanyId();
+    this.reportingYear = request.getReportingYear();
+    this.reportingMonth = request.getReportingMonth();
+    this.vehicleType = request.getVehicleType();
+    this.transportType = request.getTransportType();
+    this.fuelId = request.getFuelId();
+    this.fuelName = request.getFuelName();
+    this.fuelUsage = request.getFuelUsage();
+    this.unit = request.getUnit();
+    this.distance = request.getDistance();
+    this.createdBy = request.getCreatedBy();
+    this.notes = request.getNotes();  // 누락된 필드 추가
+}
 
     /**
      * 계산된 배출량 정보 업데이트

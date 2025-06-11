@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class ElectricityUsageRequest {
 
+    private Long memberId;                 // 회원 ID 추가
     private String companyId;              // 회사/협력사 ID (UUID)
     private Integer reportingYear;         // 보고 연도
     private Integer reportingMonth;        // 보고 월

@@ -9,102 +9,121 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Repository
 public interface MobileCombustionRepository extends JpaRepository<MobileCombustion, Long> {
 
-    /**
-     * 회원별 이동연소 데이터 조회
-     */
-    List<MobileCombustion> findByMemberIdOrderByYearDescMonthDesc(Long memberId);
+    // 기본 조회 메서드들
+    Page<MobileCombustion> findByMemberIdOrderByCreatedAtDesc(Long memberId, Pageable pageable);
+    
+    List<MobileCombustion> findByMemberIdAndReportingYear(Long memberId, Integer reportingYear);
+    
+    List<MobileCombustion> findByMemberIdAndCompanyId(Long memberId, String companyId);
+    
+    List<MobileCombustion> findByMemberIdAndCompanyIdAndReportingYear(Long memberId, String companyId, Integer reportingYear);
 
-    /**
-     * 회원별 특정 연도 이동연소 데이터 조회
-     */
-    List<MobileCombustion> findByMemberIdAndYearOrderByMonthAsc(Long memberId, Integer year);
+    Page<MobileCombustion> findByReportingYearOrderByCreatedAtDesc(Integer reportingYear, Pageable pageable);
 
-    /**
-     * 회원별 특정 연도/월 이동연소 데이터 조회
-     */
-    List<MobileCombustion> findByMemberIdAndYearAndMonth(Long memberId, Integer year, Integer month);
+    // 집계 쿼리들
+    @Query("SELECT m.reportingMonth, SUM(m.totalCo2Equivalent) " +
+           "FROM MobileCombustion m " +
+           "WHERE m.memberId = :memberId AND m.reportingYear = :year " +
+           "GROUP BY m.reportingMonth " +
+           "ORDER BY m.reportingMonth")
+    List<Object[]> findMonthlyEmissions(@Param("memberId") Long memberId, @Param("year") Integer year);
 
-    /**
-     * 회원별 연도별 총 배출량 합계
-     */
-    @Query("SELECT SUM(m.totalEmission) FROM MobileCombustion m WHERE m.memberId = :memberId AND m.year = :year")
-    BigDecimal sumTotalEmissionByMemberIdAndYear(@Param("memberId") Long memberId, @Param("year") Integer year);
+    @Query("SELECT m.fuelName, SUM(m.totalCo2Equivalent) " +
+           "FROM MobileCombustion m " +
+           "WHERE m.memberId = :memberId AND m.reportingYear = :year " +
+           "GROUP BY m.fuelName " +
+           "ORDER BY SUM(m.totalCo2Equivalent) DESC")
+    List<Object[]> findFuelEmissions(@Param("memberId") Long memberId, @Param("year") Integer year);
 
-    /**
-     * 회원별 월별 총 배출량 합계
-     */
-    @Query("SELECT SUM(m.totalEmission) FROM MobileCombustion m WHERE m.memberId = :memberId AND m.year = :year AND m.month = :month")
-    BigDecimal sumTotalEmissionByMemberIdAndYearAndMonth(@Param("memberId") Long memberId, @Param("year") Integer year, @Param("month") Integer month);
+    @Query("SELECT m.facilityLocation, SUM(m.totalCo2Equivalent) " +
+           "FROM MobileCombustion m " +
+           "WHERE m.memberId = :memberId AND m.reportingYear = :year " +
+           "GROUP BY m.facilityLocation " +
+           "ORDER BY SUM(m.totalCo2Equivalent) DESC")
+    List<Object[]> findFacilityEmissions(@Param("memberId") Long memberId, @Param("year") Integer year);
 
-    /**
-     * 차량 타입별 배출량 집계
-     */
-    @Query("SELECT m.vehicleType, SUM(m.totalEmission) FROM MobileCombustion m WHERE m.memberId = :memberId AND m.year = :year GROUP BY m.vehicleType")
-    List<Object[]> sumEmissionByVehicleTypeAndMemberIdAndYear(@Param("memberId") Long memberId, @Param("year") Integer year);
+    @Query("SELECT m.companyId, SUM(m.totalCo2Equivalent) " +
+           "FROM MobileCombustion m " +
+           "WHERE m.memberId = :memberId AND m.reportingYear = :year " +
+           "GROUP BY m.companyId " +
+           "ORDER BY SUM(m.totalCo2Equivalent) DESC")
+    List<Object[]> findPartnerEmissions(@Param("memberId") Long memberId, @Param("year") Integer year);
 
-    /**
-     * 연료 타입별 배출량 집계
-     */
-    @Query("SELECT m.fuelType.name, SUM(m.totalEmission) FROM MobileCombustion m WHERE m.memberId = :memberId AND m.year = :year GROUP BY m.fuelType.name")
-    List<Object[]> sumEmissionByFuelTypeAndMemberIdAndYear(@Param("memberId") Long memberId, @Param("year") Integer year);
+    @Query("SELECT m.combustionType, SUM(m.totalCo2Equivalent) " +
+           "FROM MobileCombustion m " +
+           "WHERE m.memberId = :memberId AND m.reportingYear = :year " +
+           "GROUP BY m.combustionType " +
+           "ORDER BY SUM(m.totalCo2Equivalent) DESC")
+    List<Object[]> findVehicleEmissions(@Param("memberId") Long memberId, @Param("year") Integer year);
 
-    // 협력사별 조회 메서드들
+    // 대시보드 통계용
+    @Query("SELECT COUNT(m), SUM(m.totalCo2Equivalent), " +
+           "SUM(CASE WHEN m.createdAt >= :startDate THEN 1 ELSE 0 END) " +
+           "FROM MobileCombustion m " +
+           "WHERE m.memberId = :memberId")
+    Object[] findDashboardStats(@Param("memberId") Long memberId, @Param("startDate") java.time.LocalDateTime startDate);
 
-    /**
-     * 회원별 및 협력사별 이동연소 데이터 조회
-     */
-    List<MobileCombustion> findByMemberIdAndPartnerCompanyIdOrderByYearDescMonthDesc(Long memberId, String partnerCompanyId);
+    // 헬퍼 메서드들
+    default Map<String, BigDecimal> getMonthlyEmissionsMap(Long memberId, Integer year) {
+        List<Object[]> results = findMonthlyEmissions(memberId, year);
+        Map<String, BigDecimal> map = new LinkedHashMap<>();
+        for (Object[] result : results) {
+            Integer month = (Integer) result[0];
+            BigDecimal emission = (BigDecimal) result[1];
+            map.put(month.toString(), emission != null ? emission : BigDecimal.ZERO);
+        }
+        return map;
+    }
 
-    /**
-     * 회원별 및 협력사별 특정 연도 이동연소 데이터 조회
-     */
-    List<MobileCombustion> findByMemberIdAndPartnerCompanyIdAndYearOrderByMonthAsc(Long memberId, String partnerCompanyId, Integer year);
+    default Map<String, BigDecimal> getFuelEmissionsMap(Long memberId, Integer year) {
+        List<Object[]> results = findFuelEmissions(memberId, year);
+        Map<String, BigDecimal> map = new LinkedHashMap<>();
+        for (Object[] result : results) {
+            String fuelName = (String) result[0];
+            BigDecimal emission = (BigDecimal) result[1];
+            map.put(fuelName, emission != null ? emission : BigDecimal.ZERO);
+        }
+        return map;
+    }
 
-    /**
-     * 회원별 및 협력사별 특정 연도/월 이동연소 데이터 조회
-     */
-    List<MobileCombustion> findByMemberIdAndPartnerCompanyIdAndYearAndMonth(Long memberId, String partnerCompanyId, Integer year, Integer month);
+    default Map<String, BigDecimal> getFacilityEmissionsMap(Long memberId, Integer year) {
+        List<Object[]> results = findFacilityEmissions(memberId, year);
+        Map<String, BigDecimal> map = new LinkedHashMap<>();
+        for (Object[] result : results) {
+            String facilityLocation = (String) result[0];
+            BigDecimal emission = (BigDecimal) result[1];
+            map.put(facilityLocation, emission != null ? emission : BigDecimal.ZERO);
+        }
+        return map;
+    }
 
-    /**
-     * 회원별 및 협력사별 연도별 총 배출량 합계
-     */
-    @Query("SELECT SUM(m.totalEmission) FROM MobileCombustion m WHERE m.memberId = :memberId AND m.partnerCompanyId = :partnerCompanyId AND m.year = :year")
-    BigDecimal sumTotalEmissionByMemberIdAndPartnerCompanyIdAndYear(@Param("memberId") Long memberId, @Param("partnerCompanyId") String partnerCompanyId, @Param("year") Integer year);
+    default Map<String, BigDecimal> getPartnerEmissionsMap(Long memberId, Integer year) {
+        List<Object[]> results = findPartnerEmissions(memberId, year);
+        Map<String, BigDecimal> map = new LinkedHashMap<>();
+        for (Object[] result : results) {
+            String companyId = (String) result[0];
+            BigDecimal emission = (BigDecimal) result[1];
+            map.put(companyId, emission != null ? emission : BigDecimal.ZERO);
+        }
+        return map;
+    }
 
-    /**
-     * 회원별 및 협력사별 월별 총 배출량 합계
-     */
-    @Query("SELECT SUM(m.totalEmission) FROM MobileCombustion m WHERE m.memberId = :memberId AND m.partnerCompanyId = :partnerCompanyId AND m.year = :year AND m.month = :month")
-    BigDecimal sumTotalEmissionByMemberIdAndPartnerCompanyIdAndYearAndMonth(@Param("memberId") Long memberId, @Param("partnerCompanyId") String partnerCompanyId, @Param("year") Integer year, @Param("month") Integer month);
-
-    // Service에서 사용되는 추가 메서드들
-
-    /**
-     * 회사별 이동연소 데이터 조회 (생성일 역순)
-     */
-    @Query("SELECT m FROM MobileCombustion m WHERE m.companyId = :companyId ORDER BY m.createdAt DESC")
-    Page<MobileCombustion> findByCompanyIdOrderByCreatedAtDesc(@Param("companyId") Long companyId, Pageable pageable);
-
-    /**
-     * 회사별 및 연도별 이동연소 데이터 조회
-     */
-    List<MobileCombustion> findByCompanyIdAndReportingYear(Long companyId, Integer reportingYear);
-
-    /**
-     * 회사별 및 연도별 총 CO2 등가량 합계
-     */
-    @Query("SELECT SUM(m.totalCo2Equivalent) FROM MobileCombustion m WHERE m.companyId = :companyId AND m.reportingYear = :year")
-    Optional<BigDecimal> sumTotalCo2EquivalentByCompanyIdAndYear(@Param("companyId") Long companyId, @Param("year") Integer year);
-
-    /**
-     * 차량 타입별 배출량 합계
-     */
-    @Query("SELECT m.vehicleType, SUM(m.totalCo2Equivalent) FROM MobileCombustion m WHERE m.companyId = :companyId AND m.reportingYear = :year GROUP BY m.vehicleType")
-    List<Object[]> sumEmissionByVehicleType(@Param("companyId") Long companyId, @Param("year") Integer year);
+    default Map<String, BigDecimal> getVehicleEmissionsMap(Long memberId, Integer year) {
+        List<Object[]> results = findVehicleEmissions(memberId, year);
+        Map<String, BigDecimal> map = new LinkedHashMap<>();
+        for (Object[] result : results) {
+            String combustionType = (String) result[0];
+            BigDecimal emission = (BigDecimal) result[1];
+            map.put(combustionType, emission != null ? emission : BigDecimal.ZERO);
+        }
+        return map;
+    }
 }

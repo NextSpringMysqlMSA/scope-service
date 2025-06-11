@@ -8,7 +8,6 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 /**
  * Scope 1 고정연소 데이터 엔티티
@@ -33,28 +32,28 @@ public class StationaryCombustion {
     private String companyId;      // 회사/협력사 ID (UUID)
 
     @Column(nullable = false)
-    private Integer reportingYear;     // 보고 연도 (ScopeModal의 reportingYear)
+    private Integer reportingYear;     // 보고 연도
 
     @Column(nullable = false)
-    private Integer reportingMonth;    // 보고 월 (ScopeModal의 reportingMonth)
+    private Integer reportingMonth;    // 보고 월
 
     @Column(nullable = false, length = 100)
-    private String facilityName;   // 시설명 (ScopeModal의 facilityName)
+    private String facilityName;   // 시설명
 
     @Column(length = 100)
-    private String facilityLocation; // 시설 위치 (ScopeModal의 facilityLocation)
+    private String facilityLocation; // 시설 위치
 
     @Column(nullable = false, length = 50)
     private String combustionType; // 연소 타입 (LIQUID, SOLID, GAS)
 
     @Column(nullable = false, length = 50)
-    private String fuelId;         // 연료 ID (ScopeModal의 fuelId)
+    private String fuelId;         // 연료 ID
 
     @Column(length = 100)
     private String fuelName;       // 연료명
 
     @Column(nullable = false, precision = 15, scale = 4)
-    private BigDecimal fuelUsage;  // 연료 사용량 (ScopeModal의 fuelUsage)
+    private BigDecimal fuelUsage;  // 연료 사용량
 
     @Column(nullable = false, length = 20)
     private String unit;           // 단위 (L, kg, m³ 등)
@@ -75,10 +74,7 @@ public class StationaryCombustion {
     private LocalDateTime calculatedAt;    // 계산 일시
 
     @Column(length = 100)
-    private String createdBy;      // 생성자 (ScopeModal의 createdBy)
-
-    @Column(length = 100)
-    private String createdBy;      // 생성자 (ScopeModal의 createdBy)
+    private String createdBy;      // 생성자
 
     @Column(length = 500)
     private String notes;          // 비고
@@ -92,23 +88,22 @@ public class StationaryCombustion {
     private LocalDateTime updatedAt;
 
     /**
-     * ScopeModal 폼 데이터로 엔티티 업데이트
+     * 수정: StationaryCombustionRequest로 엔티티 업데이트
      */
-    public void updateFromScopeModal(String companyId, Integer reportingYear, Integer reportingMonth,
-                                   String facilityName, String facilityLocation, String combustionType,
-                                   String fuelId, String fuelName, BigDecimal fuelUsage, String unit,
-                                   String createdBy) {
-        this.companyId = companyId;
-        this.reportingYear = reportingYear;
-        this.reportingMonth = reportingMonth;
-        this.facilityName = facilityName;
-        this.facilityLocation = facilityLocation;
-        this.combustionType = combustionType;
-        this.fuelId = fuelId;
-        this.fuelName = fuelName;
-        this.fuelUsage = fuelUsage;
-        this.unit = unit;
-        this.createdBy = createdBy;
+    public void updateFromRequest(StationaryCombustionRequest request) {
+        this.memberId = request.getMemberId();
+        this.companyId = request.getCompanyId();
+        this.reportingYear = request.getReportingYear();
+        this.reportingMonth = request.getReportingMonth();
+        this.facilityName = request.getFacilityName();
+        this.facilityLocation = request.getFacilityLocation();
+        this.combustionType = request.getCombustionType();
+        this.fuelId = request.getFuelId();
+        this.fuelName = request.getFuelName();
+        this.fuelUsage = request.getFuelUsage();
+        this.unit = request.getUnit();
+        this.createdBy = request.getCreatedBy();
+        this.notes = request.getNotes();
     }
 
     /**

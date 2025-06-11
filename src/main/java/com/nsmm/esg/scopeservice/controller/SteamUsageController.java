@@ -79,6 +79,7 @@ public class SteamUsageController {
             HttpServletRequest httpRequest) {
         
         Long memberId = extractMemberId(httpRequest);
+        //수정: 서비스 메서드 시그니처에 맞게 파라미터 순서 변경 (id, memberId, request)
         SteamUsageResponse response = steamUsageService.updateSteamUsage(id, memberId, request);
         return ResponseEntity.ok(response);
     }
@@ -95,6 +96,7 @@ public class SteamUsageController {
             HttpServletRequest httpRequest) {
         
         Long memberId = extractMemberId(httpRequest);
+        // 수정: 서비스 메서드 시그니처에 맞게 파라미터 순서 변경 (id, memberId)
         steamUsageService.deleteSteamUsage(id, memberId);
         return ResponseEntity.noContent().build();
     }

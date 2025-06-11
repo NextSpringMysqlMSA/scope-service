@@ -24,6 +24,9 @@ public class FuelType {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false, unique = true, length = 50)
+    private String fuelId;          // 외부 참조용 ID 추가
+
     @Column(nullable = false, length = 50)
     private String category;        // 연료 카테고리 (석유계, 석탄계, 가스계, 차량용)
 
