@@ -36,8 +36,6 @@ public class StationaryCombustionResponse {
     private BigDecimal totalCo2Equivalent; // 총 배출량
     private LocalDateTime calculatedAt;    // 계산 일시
     
-    private String createdBy;              // 생성자
-    private String notes;                  // 비고
     private LocalDateTime createdAt;       // 생성일시
     private LocalDateTime updatedAt;       // 수정일시
 }

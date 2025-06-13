@@ -73,12 +73,6 @@ public class StationaryCombustion {
 
     private LocalDateTime calculatedAt;    // 계산 일시
 
-    @Column(length = 100)
-    private String createdBy;      // 생성자
-
-    @Column(length = 500)
-    private String notes;          // 비고
-
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -102,8 +96,6 @@ public class StationaryCombustion {
         this.fuelName = request.getFuelName();
         this.fuelUsage = request.getFuelUsage();
         this.unit = request.getUnit();
-        this.createdBy = request.getCreatedBy();
-        this.notes = request.getNotes();
     }
 
     /**

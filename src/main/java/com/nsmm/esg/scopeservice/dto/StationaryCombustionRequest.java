@@ -26,6 +26,4 @@ public class StationaryCombustionRequest {
     private String fuelName;               // 연료명
     private BigDecimal fuelUsage;          // 연료 사용량
     private String unit;                   // 단위
-    private String createdBy;              // 생성자
-    private String notes;                  // 비고
 }
