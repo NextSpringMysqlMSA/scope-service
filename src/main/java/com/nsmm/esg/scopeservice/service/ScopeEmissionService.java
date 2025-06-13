@@ -56,11 +56,13 @@ public class ScopeEmissionService {
     public List<ScopeEmissionResponse> getEmissions(Long memberId, String companyId,
                                                     EmissionActivityType activityType,
                                                     Integer reportingYear, Integer reportingMonth) {
-        // 동적 쿼리는 QueryDSL 또는 Specification 추천, 예시는 findAll 사용
         List<ScopeEmission> list = scopeEmissionRepository
-                .findByMemberIdAndCompanyIdAndActivityTypeAndPeriod(memberId, companyId, activityType, reportingYear, reportingMonth);
+                .findByMemberIdAndCompanyIdAndEmissionActivityTypeAndReportingYearAndReportingMonth(
+                        memberId, companyId, activityType, reportingYear, reportingMonth
+                );
         return list.stream().map(this::toResponseDto).collect(Collectors.toList());
     }
+
 
     // =========== UPDATE ===========
     @Transactional

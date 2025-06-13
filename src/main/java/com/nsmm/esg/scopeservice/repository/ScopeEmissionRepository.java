@@ -10,8 +10,8 @@ import java.util.List;
 @Repository
 public interface ScopeEmissionRepository extends JpaRepository<ScopeEmission, Long> {
 
-    // 1. 회원 + 회사 + 활동유형 + 연도 + 월
-    List<ScopeEmission> findByMemberIdAndCompanyIdAndActivityTypeAndPeriod(
+    // 회원 + 회사 + 활동유형 + 연도 + 월로 조회 (정확히 일치하는 emission)
+    List<ScopeEmission> findByMemberIdAndCompanyIdAndEmissionActivityTypeAndReportingYearAndReportingMonth(
             Long memberId,
             String companyId,
             EmissionActivityType emissionActivityType,
@@ -19,26 +19,30 @@ public interface ScopeEmissionRepository extends JpaRepository<ScopeEmission, Lo
             Integer reportingMonth
     );
 
-    // 2. 회원 + 회사 + 활동유형
+    // 회원 + 회사 + 활동유형 + 연도만 입력 시 (월은 전체)
+    List<ScopeEmission> findByMemberIdAndCompanyIdAndEmissionActivityTypeAndReportingYear(
+            Long memberId,
+            String companyId,
+            EmissionActivityType emissionActivityType,
+            Integer reportingYear
+    );
+
+    // 회원 + 회사 + 활동유형만 입력 시 (연도/월은 전체)
     List<ScopeEmission> findByMemberIdAndCompanyIdAndEmissionActivityType(
             Long memberId,
             String companyId,
             EmissionActivityType emissionActivityType
     );
 
-    // 3. 회원 + 회사 + 연도
-    List<ScopeEmission> findByMemberIdAndCompanyIdAndReportingYear(
-            Long memberId,
-            String companyId,
-            Integer reportingYear
-    );
-
-    // 4. 회원 + 회사
+    // 회원 + 회사만 입력 시 (활동유형/연도/월은 전체)
     List<ScopeEmission> findByMemberIdAndCompanyId(
             Long memberId,
             String companyId
     );
 
-    // 5. 회원만
+    // 회원 전체 emission 조회 (모든 조건 전체)
     List<ScopeEmission> findByMemberId(Long memberId);
+
+    // id 단일 조회 (기본)
+    ScopeEmission findByIdAndMemberId(Long id, Long memberId);
 }
